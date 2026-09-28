@@ -941,6 +941,7 @@ class RewardAndTrajectoryTests(unittest.TestCase):
                 "curriculum2.yaml",
                 "curriculum2_binary_overfit.yaml",
                 "curriculum2_overfit.yaml",
+                "curriculum2_risk_fallback_open.yaml",
                 "curriculum2_single_death.yaml",
                 "curriculum2_three_lives.yaml",
             ],
