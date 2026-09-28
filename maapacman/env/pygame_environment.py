@@ -31,6 +31,7 @@ from maapacman.errors import (
 
 from .config import PacmanEnvSpec
 from .ghost_modes import validate_ghost_mode, validate_ghost_state
+from ._saved_state import SCHEMA as SAVED_STATE_SCHEMA, checksum
 
 
 def normalize_episode_life_mode(mode: str) -> str:
@@ -287,8 +288,14 @@ class PygamePacmanEnv:
     def worker_runtime_dir(self) -> Path | None:
         return self._runtime_dir
 
-    def reset(self, *, seed: int | None = None) -> tuple[np.ndarray, dict[str, Any]]:
+    def reset(
+        self, *, seed: int | None = None, saved_state: dict[str, Any] | None = None,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         self._ensure_open()
+        if saved_state is not None:
+            if seed is not None:
+                raise InvalidConfigurationError("seed and saved_state are mutually exclusive")
+            return self.restore_state(saved_state)
         if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
             raise InvalidConfigurationError("reset seed must be an integer")
         self._stop_worker()
@@ -617,6 +624,88 @@ class PygamePacmanEnv:
     def snapshot(self) -> dict[str, Any]:
         self._ensure_ready()
         return dict(self._state)
+
+    def _saved_state_identity(self) -> dict[str, Any]:
+        resources = self._script.parent / "res"
+        assets = hashlib.sha256()
+        for path in sorted(resources.rglob("*")):
+            # High scores are now in the saved game object. Fonts are still
+            # read at game-over, so include binary resources in compatibility.
+            if path.is_file() and path != resources / "hiscore.txt":
+                assets.update(path.relative_to(resources).as_posix().encode("utf-8"))
+                assets.update(b"\0")
+                assets.update(hashlib.sha256(path.read_bytes()).digest())
+        return {
+            "schema": SAVED_STATE_SCHEMA,
+            "pacman_source": self._pacman_source_revision,
+            "env_source": self._maapacman_source_revision,
+            "ruleset": self._spec.ruleset_revision,
+            "level": self._level_revision,
+            "assets": assets.hexdigest(),
+            "max_steps": self.config.max_steps,
+            "episode_life_mode": self.config.episode_life_mode,
+        }
+
+    def save_state(self) -> dict[str, Any]:
+        """Return an independent JSON-safe checkpoint at a reset/step boundary.
+
+        Includes exact RNG, game objects, sprites, framebuffer and episode
+        accounting. Unlike snapshot(), this is sufficient for continuation.
+        """
+        self._ensure_ready()
+        self._request_id += 1
+        self._send({"op": "save_state", "request_id": self._request_id})
+        message = self._receive(expected_type="saved_state", request_id=self._request_id)
+        payload = {
+            "identity": self._saved_state_identity(),
+            "worker": message["saved_state"],
+            "episode": {
+                "seed": self._seed, "steps": self._steps, "finished": self._finished,
+                "initial_collectibles": self._initial_collectibles,
+                "death_count": self._death_count, "last_logic_frames": self._last_logic_frames,
+            },
+        }
+        return {"payload": payload, "sha256": checksum(payload)}
+
+    def restore_state(self, saved_state: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
+        """Resume a matching checkpoint, also in a fresh environment/worker.
+
+        Original step budget and terminal status are preserved. Finished saves
+        remain finished; restoration does not silently grant another episode.
+        """
+        self._ensure_open()
+        try:
+            payload = saved_state["payload"]
+            if checksum(payload) != saved_state["sha256"]:
+                raise ValueError("checksum mismatch")
+            if payload["identity"] != self._saved_state_identity():
+                raise ValueError("source/config/schema mismatch")
+            episode = payload["episode"]
+            if set(episode) != {"seed", "steps", "finished", "initial_collectibles",
+                                "death_count", "last_logic_frames"}:
+                raise ValueError("episode fields mismatch")
+            for name in ("seed", "steps", "initial_collectibles", "death_count", "last_logic_frames"):
+                if type(episode[name]) is not int or episode[name] < 0:
+                    raise ValueError(f"invalid episode {name}")
+            if (type(episode["finished"]) is not bool or episode["initial_collectibles"] <= 0
+                    or episode["steps"] > self.config.max_steps):
+                raise ValueError("invalid episode counters")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise InvalidConfigurationError(f"invalid saved state: {exc}") from exc
+        if not self._started:
+            self.reset(seed=episode["seed"])
+        self._request_id += 1
+        self._send({"op": "restore_state", "request_id": self._request_id,
+                    "saved_state": payload["worker"]})
+        message = self._receive(expected_type="restored_state", request_id=self._request_id)
+        self._accept_message(message)
+        self._seed = episode["seed"]
+        self._steps = episode["steps"]
+        self._finished = episode["finished"]
+        self._initial_collectibles = episode["initial_collectibles"]
+        self._death_count = episode["death_count"]
+        self._last_logic_frames = episode["last_logic_frames"]
+        return self.render(), self._build_info(score_delta=0, seed=self._seed)
 
     def close(self) -> None:
         if not self._closed:

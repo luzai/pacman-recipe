@@ -11,6 +11,10 @@
 C2 可显式启用[单步风险回退](docs/edward-risk-fallback.md)：正常 options 全部为空时，
 展示所有开放方向及风险提示，让模型选择一步后重新规划。默认仍保留原有行为。
 
+Simulator 支持 [JSON save-state / restore](docs/simulator-save-state.md)：在
+`reset/step` 边界保存完整游戏、RNG、渲染和 episode 计数，可在新 worker 中继续。
+接口为 `save_state()`、`restore_state(saved)` 或 `reset(saved_state=saved)`。
+
 日常开发和交付统一使用 `release/maapacman-v0.1.0`。`backup/2026-09-04/*` 仅用于保留历史。
 
 当前交付状态是 **source/recipe-only**：新两阶段方案正在集成验证，尚未完成对应的分布式 GPU smoke、完整训练及最终 C2 权重的独立运行验收，不能据此宣称最终 agent 已能通关。

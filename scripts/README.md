@@ -9,6 +9,18 @@
 - `level1/report/`: trajectory auditing, checkpoint assembly, demo export, and
   report helpers.
 
+Simulator save-state sanity check (CPU, no model service):
+
+```bash
+python scripts/level1/evaluate/check_simulator_saved_state.py \
+  --output-dir /absolute/new/output-directory
+```
+
+Writes `state.json` and `summary.json`; closes the original worker, restores
+from the JSON file, and compares RGB, full simulator/RNG state, rewards and
+transition events after each recorded action. See
+[save-state semantics](../docs/simulator-save-state.md).
+
 `level1/report/export_level1_rollout_video.py` labels videos with the recorded
 terminal reason, final score, and remaining pellets. Replay accepts a final
 planner `safety_refusal` truncation only while the game environment remains

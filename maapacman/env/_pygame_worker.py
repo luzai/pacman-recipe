@@ -20,6 +20,8 @@ import zlib
 from pathlib import Path
 from typing import Any
 
+from maapacman.env._saved_state import capture_game, restore_game
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -105,6 +107,20 @@ class _PygameBridge:
             return
 
         if not self._boot_started:
+            # The original game writes res/hiscore.txt at game-over. Resources
+            # are shared via a symlink: keep that display state in the episode
+            # object so replay cannot modify a different worker's future frame.
+            game._headless_hiscores = game.gethiscores()
+
+            def get_hiscores(instance: Any) -> list[Any]:
+                return list(instance._headless_hiscores)
+
+            def write_hiscores(instance: Any, scores: list[Any]) -> None:
+                instance._headless_hiscores = list(scores)
+
+            type(game).gethiscores = get_hiscores
+            type(game).writehiscores = write_hiscores
+            type(game).getplayername = lambda instance: "User"
             game.StartNewGame()
             game.SetMode(1)
             player.SnapToGrid()
@@ -190,6 +206,36 @@ class _PygameBridge:
             if operation == "close":
                 self._pygame.quit()
                 raise SystemExit(0)
+            if operation == "save_state":
+                self._emit({"type": "saved_state", "request_id": command["request_id"],
+                            "saved_state": capture_game(self._pygame, globals_dict)})
+                continue
+            if operation == "restore_state":
+                previous_game = capture_game(self._pygame, globals_dict)
+                try:
+                    restore_game(self._pygame, globals_dict, command["saved_state"])
+                    # _flip's locals must follow the newly restored object graph.
+                    game = globals_dict["thisGame"]
+                    player = globals_dict["player"]
+                    level = globals_dict["thisLevel"]
+                    self._pending_request = None
+                    self._next_action = None
+                    payload = self._capture(globals_dict)
+                    if callable(state_writer):
+                        state_writer()
+                    self._emit({**payload, "type": "restored_state",
+                                "request_id": command["request_id"]})
+                except Exception as exc:
+                    # A checksum verifies transport integrity, not graph validity.
+                    # A failed load must leave this worker ready at its old state.
+                    restore_game(self._pygame, globals_dict, previous_game)
+                    game = globals_dict["thisGame"]
+                    player = globals_dict["player"]
+                    level = globals_dict["thisLevel"]
+                    payload = self._capture(globals_dict)
+                    self._emit({"type": "error", "request_id": command["request_id"],
+                                "error": f"invalid saved state: {exc}"})
+                continue
             if operation == "step" and command.get("action") in {
                 "U",
                 "D",
@@ -443,11 +489,17 @@ class _PygameBridge:
         power_id = tile_ids.get("pellet-power")
         normal_pellets = 0
         power_pellets = 0
+        normal_pellet_positions = []
+        power_pellet_positions = []
         for row in range(int(level.lvlHeight)):
             for col in range(int(level.lvlWidth)):
                 tile = level.GetMapTile(row, col)
                 normal_pellets += int(tile == pellet_id)
                 power_pellets += int(tile == power_id)
+                if tile == pellet_id:
+                    normal_pellet_positions.append([row, col])
+                if tile == power_id:
+                    power_pellet_positions.append([row, col])
 
         blocked: list[str] = []
         open_actions: list[str] = []
@@ -523,6 +575,8 @@ class _PygameBridge:
                 "height": int(level.lvlHeight),
                 "normal_pellets": normal_pellets,
                 "power_pellets": power_pellets,
+                "normal_pellet_positions": normal_pellet_positions,
+                "power_pellet_positions": power_pellet_positions,
                 "collectibles_remaining": normal_pellets + power_pellets,
                 "edible_ticks": int(game.ghostTimer),
                 "edible_timer_started_frame": int(game.ghostTimerStartedFrame),
