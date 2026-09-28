@@ -251,6 +251,17 @@ def validate_episode_row(row: Mapping[str, Any]) -> None:
         )
         if row.get("prompt_version") != expected_prompt:
             raise ValueError("episode prompt_version does not match action_protocol")
+    restart_fields = ("restart_state_path", "restart_state_sha256", "restart_state_id")
+    if any(row.get(name) is not None for name in restart_fields):
+        if not all(isinstance(row.get(name), str) and row[name] for name in restart_fields):
+            raise ValueError("restart rows require path, sha256, and id together")
+        digest = row["restart_state_sha256"]
+        if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise ValueError("restart_state_sha256 must be a lowercase SHA256")
+        if action_protocol != DIRECT_ACTION_PROTOCOL:
+            raise ValueError("restart learning requires primitive direct actions")
+        if row.get("state_prefix_actions") or row.get("decision_steps") is not None:
+            raise ValueError("restart state cannot be combined with a prefix or one-step row")
     prefix_actions = row.get("state_prefix_actions", [])
     if (
         not isinstance(prefix_actions, list)

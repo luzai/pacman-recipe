@@ -12,6 +12,7 @@ from areal_pacman.level1.recipe import (
 
 @dataclass
 class PacmanAgentConfig(PPOConfig):
+    backplay_experiment: bool = False
     environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     dataset_generation: DatasetGenerationConfig = field(default_factory=DatasetGenerationConfig)
     planner_audit: PlannerAuditConfig = field(default_factory=PlannerAuditConfig)

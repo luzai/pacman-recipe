@@ -179,6 +179,36 @@ def _audit_prefix_evidence(payload: Mapping[str, Any]) -> tuple[int, int]:
     if executed != len(actions) or executed != len(evidence):
         raise ValueError("prefix action count does not match its evidence")
 
+    restart = payload.get("restart_state")
+    if restart is not None:
+        if not isinstance(restart, Mapping) or actions or evidence or executed:
+            raise ValueError("restart baseline cannot contain prefix actions")
+        required_restart = {"id", "path", "sha256", "identity", "source_step", "score",
+                            "logic_frame", "death_count", "normal_pellets", "power_pellets",
+                            "remaining_budget"}
+        if not required_restart.issubset(restart):
+            raise ValueError("restart baseline is incomplete")
+        if any(not isinstance(restart[name], str) or not restart[name] for name in ("id", "path")):
+            raise ValueError("restart identity/path is invalid")
+        digest = restart["sha256"]
+        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise ValueError("restart SHA-256 is invalid")
+        for name in required_restart - {"id", "path", "sha256", "identity"}:
+            if _integer(restart[name], f"restart {name}") < 0:
+                raise ValueError("restart counters must be nonnegative")
+        if not isinstance(restart["identity"], Mapping):
+            raise ValueError("restart source identity is invalid")
+        if restart["source_step"] + restart["remaining_budget"] != int(payload["max_steps"]):
+            raise ValueError("restart horizon does not reconcile")
+        if restart["remaining_budget"] <= 0 or restart["normal_pellets"] <= 0:
+            raise ValueError("restart baseline is finished")
+        if restart["normal_pellets"] != int(payload["normal_pellets_initial"]):
+            raise ValueError("restart pellet baseline does not reconcile")
+        if (restart["score"] != payload["prefix_end_score"]
+                or restart["logic_frame"] != payload["prefix_end_logic_frame"]):
+            raise ValueError("restart score/frame baseline does not reconcile")
+        return restart["score"], restart["logic_frame"]
+
     score = 0
     logic_frame = 0
     required = {
@@ -794,7 +824,9 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
     active_option_key: tuple[Any, ...] | None = None
     active_option_step = 0
     audited_parse_failures = 0
-    audited_deaths = 0
+    restart = payload.get("restart_state")
+    audited_deaths = int(restart["death_count"]) if restart is not None else 0
+    previous_env_step = int(restart["source_step"]) if restart is not None else 0
     for index, step in enumerate(steps, 1):
         if not isinstance(step, Mapping):
             raise ValueError(f"trajectory step {index} must be an object")
@@ -841,6 +873,11 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
                     "safety-refusal reward evidence"
                 )
         parse_failed = bool(step.get("parse_failed"))
+        if restart is not None:
+            expected_env_step = previous_env_step + int(not parse_failed)
+            if int(step.get("env_step", -1)) != expected_env_step:
+                raise ValueError("restart suffix env steps are not contiguous")
+            previous_env_step = expected_env_step
         if parse_failed:
             audited_parse_failures += 1
             _audit_parse_failure_evidence(
@@ -1070,6 +1107,15 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
     if has_life_contract and audited_deaths != int(payload["death_count"]):
         raise ValueError("trajectory payload death_count does not reconcile")
     final = steps[-1]
+    if restart is not None:
+        suffix_score = int(final["score"]) - int(restart["score"])
+        suffix_deaths = audited_deaths - int(restart["death_count"])
+        suffix_pellets = int(restart["normal_pellets"]) - int(final["normal_pellets_remaining"])
+        if (payload.get("suffix_score_delta") != suffix_score
+                or payload.get("suffix_death_count") != suffix_deaths
+                or payload.get("suffix_normal_pellets_eaten") != suffix_pellets
+                or abs(base_total - suffix_score) > 1e-9):
+            raise ValueError("restart suffix metrics do not reconcile")
     if int(payload.get("steps", -1)) != len(steps):
         raise ValueError("trajectory payload steps does not match trajectory length")
     if not (final["terminated"] or final["truncated"]):

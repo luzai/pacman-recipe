@@ -322,6 +322,23 @@ class PacmanImageOnlyWorkflow:
             raise ValueError("training environment.max_steps does not match dataset row")
         seed = int(requested["seed"])
         state_prefix_actions = list(data.get("state_prefix_actions") or [])
+        restart_fields = ("restart_state_path", "restart_state_sha256", "restart_state_id")
+        restart_saved = None
+        restart_metadata = None
+        if any(data.get(name) is not None for name in restart_fields):
+            if not all(isinstance(data.get(name), str) and data[name] for name in restart_fields):
+                raise ValueError("restart state requires path, SHA-256 and ID")
+            if state_prefix_actions:
+                raise ValueError("restart state and state_prefix_actions are mutually exclusive")
+            raw_restart = Path(data["restart_state_path"]).read_bytes()
+            if hashlib.sha256(raw_restart).hexdigest() != data["restart_state_sha256"]:
+                raise ValueError("restart state file SHA-256 mismatch")
+            restart_saved = json.loads(raw_restart)
+            restart_episode = restart_saved["payload"]["episode"]
+            if restart_episode["finished"]:
+                raise ValueError("restart state must not be finished")
+            if restart_episode["seed"] != seed:
+                raise ValueError("restart state seed differs from dataset row")
         single_step = data.get("decision_steps") == 1
         options["single_step"] = single_step
         trajectory_sample_id = str(
@@ -503,7 +520,25 @@ class PacmanImageOnlyWorkflow:
                 raise RuntimeError(
                     f"level-1 recipe requires max_steps in: {supported}"
             )
-            image, previous_info = env.reset(seed=seed)
+            if restart_saved is None:
+                image, previous_info = env.reset(seed=seed)
+            else:
+                image, previous_info = env.restore_state(restart_saved)
+                if previous_info["terminated"] or previous_info["truncated"]:
+                    raise ValueError("restart state must not be terminal")
+                restart_metadata = {
+                    "id": data["restart_state_id"],
+                    "path": data["restart_state_path"],
+                    "sha256": data["restart_state_sha256"],
+                    "identity": restart_saved["payload"]["identity"],
+                    "source_step": int(previous_info["step"]),
+                    "score": int(previous_info["score"]),
+                    "logic_frame": int(previous_info["logic_frame"]),
+                    "death_count": int(previous_info.get("death_count", 0)),
+                    "normal_pellets": int(previous_info["normal_pellets_remaining"]),
+                    "power_pellets": int(previous_info["power_pellets_remaining"]),
+                    "remaining_budget": config.max_steps - int(previous_info["step"]),
+                }
             if planner is not None:
                 planner.observe(env.snapshot())
             state_prefix_evidence: list[dict[str, Any]] = []
@@ -541,6 +576,17 @@ class PacmanImageOnlyWorkflow:
             )
             if initial_normal_pellets <= 0:
                 raise RuntimeError("level-1 must start with normal pellets")
+            # Reward coefficients retain their true-start interpretation even
+            # when episode metrics measure only the learner's suffix.
+            reward_normal_pellets_initial = (
+                len(load_bundled_level(config.level).pellets)
+                if restart_saved is not None else initial_normal_pellets
+            )
+            if restart_saved is not None and remaining_normal_pellets is not None:
+                remaining_normal_pellets = {
+                    Position(int(row), int(col))
+                    for row, col in env.snapshot()["normal_pellet_positions"]
+                }
             recent_positions.append(
                 (
                     int(previous_info["pacman_position"][0]),
@@ -939,7 +985,7 @@ class PacmanImageOnlyWorkflow:
                         "wall_penalty": 0.0,
                         "normal_pellet_remaining_ratio": (
                             int(previous_info["normal_pellets_remaining"])
-                            / initial_normal_pellets
+                            / reward_normal_pellets_initial
                         ),
                         "nearest_pellet_shaping_active": False,
                         "nearest_pellet_distance_before": None,
@@ -1005,7 +1051,7 @@ class PacmanImageOnlyWorkflow:
                         len(remaining_normal_pellets)
                         if reward_config.nearest_pellet_skip_on_eat
                         else max(0, len(remaining_normal_pellets) - 1)
-                    ) / initial_normal_pellets
+                    ) / reward_normal_pellets_initial
                     if (
                         earliest_ratio_after_step
                         <= reward_config.nearest_pellet_remaining_ratio_threshold
@@ -1088,11 +1134,11 @@ class PacmanImageOnlyWorkflow:
                 )
                 normal_pellet_remaining_ratio = (
                     int(info["normal_pellets_remaining"])
-                    / initial_normal_pellets
+                    / reward_normal_pellets_initial
                 )
                 normal_pellet_remaining_ratio_before = (
                     int(previous_info["normal_pellets_remaining"])
-                    / initial_normal_pellets
+                    / reward_normal_pellets_initial
                 )
                 distance_after = None
                 if level is not None and remaining_normal_pellets is not None:
@@ -1360,6 +1406,8 @@ class PacmanImageOnlyWorkflow:
                 "state_prefix_evidence": state_prefix_evidence,
                 "prefix_end_score": prefix_end_score,
                 "prefix_end_logic_frame": prefix_end_logic_frame,
+                "restart_state": restart_metadata,
+                "reward_normal_pellets_initial": reward_normal_pellets_initial,
                 "decision_steps": 1 if single_step else None,
                 "image_prompt_style": image_prompt_style,
                 **prompt_metadata,
@@ -1436,6 +1484,13 @@ class PacmanImageOnlyWorkflow:
                     level.revision if level is not None else None
                 ),
                 "total_base_reward": total_base,
+                "suffix_score_delta": int(final_info["score"]) - prefix_end_score,
+                "suffix_death_count": int(final_info.get("death_count", 0)) - (
+                    restart_metadata["death_count"] if restart_metadata is not None else 0
+                ),
+                "suffix_normal_pellets_eaten": initial_normal_pellets - int(
+                    final_info["normal_pellets_remaining"]
+                ),
                 "total_shaped_reward": total_shaped,
                 "steps": len(trajectory),
                 "pellet_clear_rate": float(final_info["pellet_clear_rate"]),

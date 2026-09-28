@@ -15,6 +15,10 @@ Simulator 支持 [JSON save-state / restore](docs/simulator-save-state.md)：在
 `reset/step` 边界保存完整游戏、RNG、渲染和 episode 计数，可在新 worker 中继续。
 接口为 `save_state()`、`restore_state(saved)` 或 `reset(saved_state=saved)`。
 
+[Adaptive Backplay 实验](docs/adaptive-backplay.md) 将成功教师轨迹的 restart states
+接入 primitive-action GRPO：先固定状态 pilot，再按当前 policy 的成功率选择更早状态。
+独立实验入口不会替代现有 C1/C2 配方；训练效果以实际实验报告为准。
+
 日常开发和交付统一使用 `release/maapacman-v0.1.0`。`backup/2026-09-04/*` 仅用于保留历史。
 
 当前交付状态是 **source/recipe-only**：新两阶段方案正在集成验证，尚未完成对应的分布式 GPU smoke、完整训练及最终 C2 权重的独立运行验收，不能据此宣称最终 agent 已能通关。

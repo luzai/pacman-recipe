@@ -179,6 +179,10 @@ def _validate_reward_objective_contract(config) -> None:
     if (
         contract in {"option_return_raw_v1", "episode_return_group_v1"}
         and not getattr(config, "edward_options", False)
+        and not (
+            contract == "episode_return_group_v1"
+            and getattr(config, "backplay_experiment", False)
+        )
     ):
         raise ValueError(f"{contract} requires edward_options=true")
     if not config.workflow.endswith(".PacmanNativeVisionWorkflow"):
@@ -250,6 +254,50 @@ def _validate_reward_objective_contract(config) -> None:
         )
 
 
+def _validate_backplay_contract(config) -> None:
+    """Separate experimental primitive GRPO from the published C1/C2 recipes."""
+    required = {
+        "recipe_version": "maapacman-adaptive-backplay-v1",
+        "action_protocol": "direct-open-action-token-v1",
+        "prompt_version": "live-state-direct-action-v3",
+        "reward_objective_contract": "episode_return_group_v1",
+        "edward_options": False,
+        "open_action_mask": True,
+        "action_token_choice": True,
+        "enable_thinking": False,
+        "objective_encoding": "direct-action-token-v1",
+    }
+    for name, expected in required.items():
+        if getattr(config, name, None) != expected:
+            raise ValueError(f"Backplay requires {name}={expected!r}")
+    if config.environment.ghost_mode != "normal":
+        raise ValueError("Backplay requires the fixed normal-ghost task")
+    if config.environment.max_steps != 512:
+        raise ValueError("Backplay preserves the original 512-step horizon")
+    if config.environment.episode_life_mode != "original_three_lives":
+        raise ValueError("Backplay requires original_three_lives")
+    for generation in (config.gconfig, config.eval_gconfig):
+        if generation.n_samples != 12 or generation.greedy or generation.temperature <= 0:
+            raise ValueError("Backplay requires sampled groups of 12 episodes")
+        if generation.top_p != 1.0:
+            raise ValueError("Backplay constrained decoding requires top_p=1")
+    if config.rollout.max_head_offpolicyness != 0:
+        raise ValueError("Backplay frontier probes require the current policy")
+    if not math.isfinite(float(config.actor.reward_clip)) or config.actor.reward_clip <= 0:
+        raise ValueError("Backplay requires finite positive normalized reward_clip")
+    if not (config.gconfig.max_tokens == config.eval_gconfig.max_tokens == config.vllm.max_model_len):
+        raise ValueError("Backplay requires matching train/eval/serving token budgets")
+    for generation in (config.gconfig, config.eval_gconfig):
+        if generation.min_new_tokens != 1 or generation.max_new_tokens != 1:
+            raise ValueError("Backplay requires exactly one primitive action token")
+    if config.tokenizer_path != config.actor.path or config.rollout.tokenizer_path != config.actor.path:
+        raise ValueError("Backplay tokenizer must match actor initialization")
+    if config.ref is None or config.ref.path != config.actor.path:
+        raise ValueError("Backplay requires the matching reference initialization")
+    if config.vllm.logprobs_mode != "processed_logprobs":
+        raise ValueError("Backplay requires constrained processed log probabilities")
+
+
 def _validate_release_stage_contract(
     config,
     *,
@@ -267,6 +315,11 @@ def _validate_release_stage_contract(
     )
 
     protocol = str(getattr(config, "action_protocol", "legacy"))
+    if getattr(config, "backplay_experiment", False):
+        _validate_backplay_contract(config)
+        if reward_ablation is not None or exploratory_budget:
+            raise ValueError("Backplay cannot combine unrelated recipe overrides")
+        return
     if reward_ablation is not None:
         if reward_ablation == "binary-outcome":
             # The terminal win signal only exists on the Edward option protocol,
