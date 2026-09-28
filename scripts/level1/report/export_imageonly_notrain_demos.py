@@ -13,8 +13,8 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from areal_pacman.synthetic.env import PacmanEnv
-from areal_pacman.synthetic.vision import render_env_image
+from pacman_recipe.synthetic.env import PacmanEnv
+from pacman_recipe.synthetic.vision import render_env_image
 
 
 RUN_DIR = ROOT / "run_artifacts" / "areal_vlm_imageonly_rules_activationgate_notrain16_20260713"

@@ -5,7 +5,7 @@
 `01eff954d4ee09bcc0937b77fea7d382496e891b`](https://github.com/luzai/pacman-python/blob/01eff954d4ee09bcc0937b77fea7d382496e891b/pacman/res/levels/1.txt).
 
 The upstream README credits David Reilly and Andy Sommerville and explicitly
-permits redistribution with credit. MaaPacman preserves that attribution here.
+permits redistribution with credit. Pacman preserves that attribution here.
 
 Upstream raw-file SHA-256 on the source Windows checkout:
 `011a82373c932e80551e0a53984d6d53a9a3ded4df200eb11fd5e7be03c5aa21`.

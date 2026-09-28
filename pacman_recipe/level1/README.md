@@ -1,17 +1,17 @@
 # Production Level-1 package
 
-This package owns the MaaPacman Level-1 reinforcement-learning recipe:
+This package owns the Pacman Level-1 reinforcement-learning recipe:
 
 - `workflow.py`: AReaL rollout workflows, no-thinking decoding and stage-specific
   dynamic direction/option masking.
 - `level1_dataset.py`: deterministic rows backed by
-  `maapacman.env.PygamePacmanEnv`.
+  `pacman_env.env.PygamePacmanEnv`.
 - `prompts.py`: production image/live-state prompt contracts.
 - `rewards.py`: Level-1 reward composition and audit.
 - `trajectories.py`: Level-1 trajectory validation and summaries.
 
-The headless environment is the bundled sibling package `maapacman` in the
-same repository. A separate MaaPacman checkout is not required.
+The headless environment is the bundled sibling package `pacman_env` in the
+same repository. A separate Pacman checkout is not required.
 
 The formal stages both use a 512 `env.step` horizon, 80/4 train/validation rows
 (seeds 28–107/108–111), batch 4, 12 samples and 5 epochs = 100 updates. Training
@@ -43,6 +43,6 @@ Edward harness/runtime. Full-game evaluation reports observed success rate
 without a minimum threshold; loading or CPU tests alone do not prove a win.
 See the root README for GPU, complete-model and download-verification gates.
 
-New code should import from `areal_pacman.level1`. Root modules with the same
+New code should import from `pacman_recipe.level1`. Root modules with the same
 names are compatibility shims for existing Python callers and YAML workflow
 paths.

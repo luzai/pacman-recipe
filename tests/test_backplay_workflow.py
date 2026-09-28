@@ -8,10 +8,10 @@ from unittest.mock import patch
 
 import pytest
 
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig, load_bundled_level
-from maapacman.planner import EdwardPlanner
-from areal_pacman.level1.workflow import PacmanImageOnlyWorkflow
-from areal_pacman.level1.trajectories import audit_trajectory
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig, load_bundled_level
+from pacman_env.planner import EdwardPlanner
+from pacman_recipe.level1.workflow import PacmanImageOnlyWorkflow
+from pacman_recipe.level1.trajectories import audit_trajectory
 from test_level1_recipe import FakeObjectiveTokenizer, OneStepEnv, make_episode_row
 
 

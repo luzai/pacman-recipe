@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from maapacman.planner import EdwardPlanner, EdwardSafetyRefusal
-from maapacman.env.state import Position
+from pacman_env.planner import EdwardPlanner, EdwardSafetyRefusal
+from pacman_env.env.state import Position
 from .test_edward_planner import GridLevel, positions
 
 
@@ -100,7 +100,7 @@ def test_no_physically_open_cardinal_move_still_refuses(opened):
 
 def test_every_direction_survives_even_when_all_predict_collision():
     planner = EdwardPlanner(corridor(), fallback_mode="risk_ranked")
-    with patch("maapacman.planner._fallback_motion_risk", return_value="collision_predicted"):
+    with patch("pacman_env.planner._fallback_motion_risk", return_value="collision_predicted"):
         candidates = planner.advertised_candidates(state())
     assert {c.first_action for c in candidates} == {"L", "R"}
 

@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from areal_pacman.level1.trajectories import audit_trajectory
+from pacman_recipe.level1.trajectories import audit_trajectory
 
 
 def main() -> None:

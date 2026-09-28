@@ -12,8 +12,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from areal_pacman.level1 import level1_dataset
-from areal_pacman.level1.recipe import (
+from pacman_recipe.level1 import level1_dataset
+from pacman_recipe.level1.recipe import (
     DIRECT_ACTION_PROTOCOL,
     EDWARD_OPTION_PROTOCOL,
     load_recipe_document,

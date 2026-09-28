@@ -1,17 +1,9 @@
-"""Compatibility metadata for the original-pygame environment."""
+"""Compatibility entrypoint for pacman_env.env.config."""
+import importlib
+import runpy
+import sys
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class PacmanEnvSpec:
-    api_version: str
-    env_id: str
-    ruleset_revision: str
-    level_revision: str
-    renderer_revision: str
-    observation_shape: tuple[int, int, int]
-    observation_dtype: str
-    action_tokens: tuple[str, ...]
-    deterministic: bool
+if __name__ == "__main__":
+    runpy.run_module('pacman_env.env.config', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_env.env.config')

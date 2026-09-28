@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 from PIL import Image, PngImagePlugin
 
-from areal_pacman.level1.image_transport import native_image_data
-from areal_pacman.level1.prompts import build_image_messages, encode_png
+from pacman_recipe.level1.image_transport import native_image_data
+from pacman_recipe.level1.prompts import build_image_messages, encode_png
 
 
 def old_encode(image):

@@ -46,7 +46,7 @@ total_train_epochs: 5
 # when --smoke-updates is explicitly supplied.
 total_train_steps: null
 tokenizer_path: ${actor.path}
-workflow: areal_pacman.workflow.PacmanNativeVisionWorkflow
+workflow: pacman_recipe.workflow.PacmanNativeVisionWorkflow
 eval_workflow: ${workflow}
 contract_violation_return: -1.0
 use_base_reward: false

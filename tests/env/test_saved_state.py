@@ -9,11 +9,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from maapacman.env import (
+from pacman_env.env import (
     EpisodeFinishedError, InvalidConfigurationError,
     PygamePacmanEnv, PygamePacmanEnvConfig,
 )
-from maapacman.planner import EdwardPlanner
+from pacman_env.planner import EdwardPlanner
 
 ROOT = Path(os.environ.get("MAAPACMAN_PACMAN_PYTHON_ROOT") or
             Path(__file__).resolve().parents[3] / "pacman-python")

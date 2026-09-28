@@ -1,44 +1,6 @@
-"""Stable public API for the original-pygame MaaPacman environment."""
+"""Compatibility imports; use pacman_env.env in new code."""
+from importlib import import_module as _import_module
 
-from maapacman.actions import ACTION_ORDER, Action
-from maapacman.errors import (
-    EnvironmentClosedError,
-    EpisodeFinishedError,
-    EpisodeNotStartedError,
-    InvalidActionError,
-    InvalidConfigurationError,
-    LevelLoadError,
-    PacmanEnvError,
-)
-
-from .config import PacmanEnvSpec
-from .level import LevelDefinition, load_bundled_level
-from .navigation import nearest_reachable_distance, route_to_nearest, transition
-from .pygame_environment import (
-    PygamePacmanEnv,
-    PygamePacmanEnvConfig,
-    PygameWorkerError,
-)
-from .state import Position
-
-__all__ = [
-    "ACTION_ORDER",
-    "Action",
-    "EnvironmentClosedError",
-    "EpisodeFinishedError",
-    "EpisodeNotStartedError",
-    "InvalidActionError",
-    "InvalidConfigurationError",
-    "LevelLoadError",
-    "LevelDefinition",
-    "PacmanEnvError",
-    "PacmanEnvSpec",
-    "PygamePacmanEnv",
-    "PygamePacmanEnvConfig",
-    "PygameWorkerError",
-    "Position",
-    "load_bundled_level",
-    "nearest_reachable_distance",
-    "route_to_nearest",
-    "transition",
-]
+_canonical = _import_module('pacman_env.env')
+__all__ = getattr(_canonical, "__all__", [n for n in vars(_canonical) if not n.startswith("_")])
+globals().update({n: getattr(_canonical, n) for n in __all__})

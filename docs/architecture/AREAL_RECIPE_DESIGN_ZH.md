@@ -2,7 +2,7 @@
 
 状态：新两阶段 source/recipe 集成验证中；最终 C2 推理和通关验收尚未完成。
 下文注明日期的证据是历史记录，不是新方案已通过的 gate。
-环境提供方：本仓库内置的 `maapacman.PygamePacmanEnv` API `3.0`
+环境提供方：本仓库内置的 `pacman_env.PygamePacmanEnv` API `3.0`
 环境 ID：`pacman-python-level1-ghostdoor-v3`
 Dataset 合约：`maapacman-level1-dataset-v4`
 正式 C1/C2 dataset 默认上限：`512` 次底层 `env.step`
@@ -12,14 +12,14 @@ Dataset 合约：`maapacman-level1-dataset-v4`
 代码合约同步日期：`2026-09-04`
 历史远端证据最后验证日期：`2026-07-23`
 
-headless 环境实现位于本仓库的 `maapacman/`，不再需要独立的 MaaPacman
+headless 环境实现位于本仓库的 `pacman_env/`，不再需要独立的 Pacman
 checkout。
 
 示例 checkout 布局：
 
 ```text
 ${WORKSPACE_ROOT}/AReaL
-${WORKSPACE_ROOT}/areal-pacman
+${WORKSPACE_ROOT}/pacman-recipe
 ${WORKSPACE_ROOT}/pacman-python
 ```
 
@@ -72,10 +72,10 @@ ghosts + Edward + 512 步测试，记录所有尝试和错误，**报告实测�
 AReaL fork
   负责分布式训练、rollout worker 和 checkpoint 编排
 
-areal-pacman 仓库
+pacman-recipe 仓库
   maapacman 包负责外部进程 wrapper、帧边界 action 协议、
   RGB Surface 提取和稳定的环境 API
-  areal_pacman 包负责 episode dataset、prompt、模型调用、解析、
+  pacman_recipe 包负责 episode dataset、prompt、模型调用、解析、
   reward shaping、trajectory 记录、AReaL 配置和评估
 
 pacman-python
@@ -83,20 +83,20 @@ pacman-python
 ```
 
 `pacman-python` 是 sibling dependency，源代码必须保持干净。它不得 import
-`maapacman` 或 AReaL。
+`pacman_env` 或 AReaL。
 
 ### 1.1 生产环境 API
 
 生产 Level 1 文件只 import `PygamePacmanEnv`：
 
-- `areal_pacman/level1/workflow.py`
-- `areal_pacman/level1/level1_dataset.py`
+- `pacman_recipe/level1/workflow.py`
+- `pacman_recipe/level1/level1_dataset.py`
 - `train_areal.py` 的生产 dry-run 路径
 - `scripts/level1/dataset/write_level1_manifest.py`
 - `tests/test_level1_recipe.py`
 
 唯一被接受的环境 import 是
-`from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig`。recipe 不定义
+`from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig`。recipe 不定义
 也不暴露另一套 Pacman 环境合约。
 
 ## 2. Episode 架构
@@ -127,12 +127,12 @@ timer 和 animation 都不会推进。因此，模型延迟只改变 rollout 的
 
 ## 3. 必需安装和 mirror
 
-生产训练节点需要固定下面三层源码。`areal-pacman` checkout 同时包含两个
-Python 包，因此不需要独立 MaaPacman 仓库或安装：
+生产训练节点需要固定下面三层源码。`pacman-recipe` checkout 同时包含两个
+Python 包，因此不需要独立 Pacman 仓库或安装：
 
 ```text
 ${AREAL_ROOT}
-${AREAL_PACMAN_ROOT}
+${PACMAN_RECIPE_ROOT}
 ${PACMAN_PYTHON_ROOT}
 ```
 
@@ -164,7 +164,7 @@ AReaL 开发 worktree 不是 Pacman 训练依赖。
 OWNER_ROOT="${OWNER_ROOT:?set an owner-controlled project root}"
 CODE_ROOT="${CODE_ROOT:-$OWNER_ROOT/maapacman-stack}"
 AREAL_ROOT="${AREAL_ROOT:-$OWNER_ROOT/AReaL}"
-AREAL_PACMAN_ROOT="${AREAL_PACMAN_ROOT:-$CODE_ROOT/areal-pacman}"
+PACMAN_RECIPE_ROOT="${PACMAN_RECIPE_ROOT:-$CODE_ROOT/pacman-recipe}"
 PACMAN_PYTHON_ROOT="${PACMAN_PYTHON_ROOT:-$CODE_ROOT/pacman-python}"
 ENV_ROOT="${ENV_ROOT:-$OWNER_ROOT/.conda/envs/maapacman-rl}"
 PYTHON="${PYTHON:-$ENV_ROOT/bin/python}"
@@ -176,11 +176,11 @@ conda create -y -p "$ENV_ROOT" --clone "$BASE_ENV"
 "$PYTHON" -m pip install "pygame==2.6.1"
 "$PYTHON" -m pip install \
   -e "$AREAL_ROOT" \
-  -e "$AREAL_PACMAN_ROOT"
+  -e "$PACMAN_RECIPE_ROOT"
 ```
 
-训练前固定并记录 AReaL、areal-pacman 和 pacman-python 三个 Git revision。
-内置 `maapacman` 与 areal-pacman 共用同一个 revision。rollout 期间将
+训练前固定并记录 AReaL、pacman-recipe 和 pacman-python 三个 Git revision。
+内置 `pacman_env` 与 pacman-recipe 共用同一个 revision。rollout 期间将
 `pacman-python` mirror 视为只读。每个 worker 的副本、`agent_state.json`、
 pygame 进程和 IPC 都是 `/tmp` 下的可丢弃内容。
 
@@ -188,7 +188,7 @@ pygame 进程和 IPC 都是 `/tmp` 下的可丢弃内容。
 该方法证明了运行时兼容性，但不是生产安装 recipe。
 
 一个不相关的旧 `pacman_gym` Conda 环境曾经过审计但未被修改。它当时使用
-Python `3.11.15`，且没有 pygame 和内置的 `maapacman` 模块，因此不是被接受的
+Python `3.11.15`，且没有 pygame 和内置的 `pacman_env` 模块，因此不是被接受的
 recipe 环境。
 
 launcher 设置 `SDL_VIDEODRIVER=dummy` 和 `SDL_AUDIODRIVER=dummy`。Xvfb 不属于
@@ -201,7 +201,7 @@ SDL dummy 通过原版 pygame worker 和 oracle gate；这些结果确定了显�
 ```python
 import os
 
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
 
 env = PygamePacmanEnv(
     PygamePacmanEnvConfig(
@@ -232,7 +232,7 @@ if env.config.max_steps not in {32, 256, 512, 2000}:
     raise RuntimeError("unsupported level-1 episode cap")
 ```
 
-它只能 import 公开的 `maapacman.env` API，不能 import worker module。
+它只能 import 公开的 `pacman_env.env` API，不能 import worker module。
 
 ## 5. Dataset 合约
 
@@ -306,7 +306,7 @@ reset 后以及 transaction 完成后，worker 都会阻塞在包装后的 `disp
 
 每个 rollout worker 独占唯一的临时运行目录、原版脚本副本、资源链接/私有副本、
 pygame 进程、IPC channel、状态文件和 Surface。worker 不拥有 X server 或
-`DISPLAY`；pygame 通过 SDL dummy 渲染，MaaPacman 直接读取完成后的 Surface。
+`DISPLAY`；pygame 通过 SDL dummy 渲染，Pacman 直接读取完成后的 Surface。
 
 ### 当前 IPC 合约与历史 timing 证据
 
@@ -360,7 +360,7 @@ shared-memory payload 当时估计每个 worker episode 可节省约 `0.38 s`。
 
 ## 7. Reward 归属
 
-MaaPacman 返回原版游戏的 score delta：
+Pacman 返回原版游戏的 score delta：
 
 | 原版事件 | Base reward |
 |---|---:|
@@ -620,7 +620,7 @@ alpha * (
 alpha = 1
 ```
 
-距离用内置 `maapacman` 包维护的 level 表示做 BFS；每个距离和 reward term
+距离用内置 `pacman_env` 包维护的 level 表示做 BFS；每个距离和 reward term
 都必须落盘并独立复算，`pacman-python` 仍然不修改。
 
 这个 follow-up 已实现为
@@ -713,11 +713,11 @@ GPU 训练前待办还包括 rollout-launcher 取消测试、可选 no-wait cloc
 #### 本地 gate —— 已完成
 
 - `pacman-python` 源 checkout 当时在 commit `d258122e...` 上保持干净。
-- MaaPacman wrapper 当时使用原版 pygame Surface。
+- Pacman wrapper 当时使用原版 pygame Surface。
 - Windows 原生和 SDL dummy 的 reset、`L,L,L,S` hash 当时完全一致。
 - `PygamePacmanEnv` 测试当时通过 `6/6`，其中包括四个并发 worker。
-- 完整 MaaPacman unittest suite 当时通过 `23/23`。
-- 完整 areal-pacman pytest suite 当时通过 `98` 项测试和 `11` 项 subtest。
+- 完整 Pacman unittest suite 当时通过 `23/23`。
+- 完整 pacman-recipe pytest suite 当时通过 `98` 项测试和 `11` 项 subtest。
 
 #### Linux 显示 gate —— 已在一台 8×H100 测试节点完成
 
@@ -736,7 +736,7 @@ Xvfb 当时未安装、未使用，也不属于该历史 recipe。
 - 在该持久环境中，直接 PygamePacmanEnv 测试、RGB parity、4/16-worker 隔离
   和完整 oracle 均已通过。
 - 该历史 node1 gate 使用旧的三个 editable package 布局。当前 release 已将
-  `maapacman` 合并到 `areal-pacman` checkout；这里保留其直接 pygame gate 以及
+  `pacman_env` 合并到 `pacman-recipe` checkout；这里保留其直接 pygame gate 以及
   已部署 recipe suite 通过 `98` 项测试和 `11` 项 subtest 的历史记录。
 - node1 当时使用 node-local AReaL 开发 checkout，base 为 `da645a37...`，有
   26 个 dirty entry；node5 使用自己的物理 checkout。这些路径当时有意保持

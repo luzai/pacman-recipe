@@ -1,57 +1,9 @@
-"""Backward-compatible imports for production Level-1 prompts."""
+"""Compatibility entrypoint for pacman_recipe.prompts."""
+import importlib
+import runpy
+import sys
 
-from .level1.prompts import (
-    EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT,
-    EDWARD_OBJECTIVE_V1_SYSTEM_PROMPT,
-    LIVE_STATE_V3_SYSTEM_PROMPT,
-    LIVE_STATE_V3_USER_INSTRUCTION,
-    LIVE_STATIC_V2_SYSTEM_PROMPT,
-    LIVE_STATIC_V2_USER_INSTRUCTION,
-    MINIMAL_V1_SYSTEM_PROMPT,
-    MINIMAL_V1_USER_INSTRUCTION,
-    PROMPT_STYLES,
-    SYSTEM_PROMPT,
-    USER_INSTRUCTION,
-    WALL_AVOIDANCE_AXIS_V3_SYSTEM_PROMPT,
-    WALL_AVOIDANCE_AXIS_V3_USER_INSTRUCTION,
-    WALL_AVOIDANCE_LOCAL_V2_SYSTEM_PROMPT,
-    WALL_AVOIDANCE_LOCAL_V2_USER_INSTRUCTION,
-    WALL_AVOIDANCE_V1_SYSTEM_PROMPT,
-    WALL_AVOIDANCE_V1_USER_INSTRUCTION,
-    build_image_messages,
-    crop_pacman_local_view,
-    encode_png,
-    image_count,
-    live_state_instruction,
-    png_data_url,
-    png_sha256,
-    prompt_text,
-)
-
-__all__ = [
-    "EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT",
-    "EDWARD_OBJECTIVE_V1_SYSTEM_PROMPT",
-    "LIVE_STATE_V3_SYSTEM_PROMPT",
-    "LIVE_STATE_V3_USER_INSTRUCTION",
-    "LIVE_STATIC_V2_SYSTEM_PROMPT",
-    "LIVE_STATIC_V2_USER_INSTRUCTION",
-    "MINIMAL_V1_SYSTEM_PROMPT",
-    "MINIMAL_V1_USER_INSTRUCTION",
-    "PROMPT_STYLES",
-    "SYSTEM_PROMPT",
-    "USER_INSTRUCTION",
-    "WALL_AVOIDANCE_AXIS_V3_SYSTEM_PROMPT",
-    "WALL_AVOIDANCE_AXIS_V3_USER_INSTRUCTION",
-    "WALL_AVOIDANCE_LOCAL_V2_SYSTEM_PROMPT",
-    "WALL_AVOIDANCE_LOCAL_V2_USER_INSTRUCTION",
-    "WALL_AVOIDANCE_V1_SYSTEM_PROMPT",
-    "WALL_AVOIDANCE_V1_USER_INSTRUCTION",
-    "build_image_messages",
-    "crop_pacman_local_view",
-    "encode_png",
-    "image_count",
-    "live_state_instruction",
-    "png_data_url",
-    "png_sha256",
-    "prompt_text",
-]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.prompts', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.prompts')

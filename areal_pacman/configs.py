@@ -1,5 +1,9 @@
-"""Backward-compatible imports for synthetic AReaL configuration."""
+"""Compatibility entrypoint for pacman_recipe.configs."""
+import importlib
+import runpy
+import sys
 
-from .synthetic.configs import PacmanAgentConfig
-
-__all__ = ["PacmanAgentConfig"]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.configs', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.configs')

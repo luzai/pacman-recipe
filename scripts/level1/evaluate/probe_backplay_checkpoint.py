@@ -55,9 +55,9 @@ def main(argv=None):
     from areal.utils.environ import is_single_controller
     from datasets import Dataset
     from omegaconf import OmegaConf
-    from areal_pacman.synthetic.configs import PacmanAgentConfig
-    from areal_pacman.level1.level1_dataset import make_episode_row
-    from areal_pacman.level1.backplay_runner import BackplayExperiment, load_restart_bank, redact_config, write_json
+    from pacman_recipe.synthetic.configs import PacmanAgentConfig
+    from pacman_recipe.level1.level1_dataset import make_episode_row
+    from pacman_recipe.level1.backplay_runner import BackplayExperiment, load_restart_bank, redact_config, write_json
     # Apply before interpolation resolves: actor, tokenizer and vLLM must load
     # the same frozen model, rather than a stale training base model.
     config, _ = load_expr_config([*config_args, f'actor.path={checkpoint}',

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "${REPO_ROOT}/scripts/pacman_paths.sh"
 ARTIFACT_ROOT="${ARTIFACT_ROOT:-${REPO_ROOT}/artifacts/runs/generated/level1_overfit}"
 BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3.5-9B}"
 BASELINE_URL="${BASELINE_URL:-}"

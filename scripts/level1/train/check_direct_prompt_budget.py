@@ -18,7 +18,7 @@ from typing import Any
 
 import numpy as np
 
-from areal_pacman.level1.prompts import (
+from pacman_recipe.level1.prompts import (
     build_image_messages,
     encode_png,
     png_sha256,
@@ -126,7 +126,7 @@ def native_messages(png: bytes, context: dict[str, Any]) -> tuple[Any, list[dict
 
 def capture_c1_image(pacman_python_root: Path | None = None) -> tuple[np.ndarray, dict]:
     """Capture the actual headless Level 1 renderer with ghosts disabled."""
-    from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
+    from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
 
     env = PygamePacmanEnv(
         PygamePacmanEnvConfig(

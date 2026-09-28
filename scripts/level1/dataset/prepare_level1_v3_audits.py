@@ -12,23 +12,23 @@ import subprocess
 from typing import Any, Mapping
 
 import yaml
-from areal_pacman.level1.recipe import (
+from pacman_recipe.level1.recipe import (
     DIRECT_ACTION_PROTOCOL,
     EDWARD_OPTION_PROTOCOL,
     load_recipe_document,
     load_planner_audit_settings,
     load_recipe_settings,
 )
-from maapacman.env import (
+from pacman_env.env import (
     Position,
     PygamePacmanEnv,
     PygamePacmanEnvConfig,
     load_bundled_level,
     nearest_reachable_distance,
 )
-from maapacman.planner import EdwardPlanner
+from pacman_env.planner import EdwardPlanner
 
-from areal_pacman.level1.level1_dataset import (
+from pacman_recipe.level1.level1_dataset import (
     DATASET_CONTRACT_VERSION,
     ENV_API_VERSION,
     ENV_NAME,
@@ -37,17 +37,17 @@ from areal_pacman.level1.level1_dataset import (
     audit_anchor_semantics,
     repository_revisions,
 )
-from areal_pacman.level1.prompts import encode_png, png_sha256
-from areal_pacman.level1.rewards import (
+from pacman_recipe.level1.prompts import encode_png, png_sha256
+from pacman_recipe.level1.rewards import (
     REWARD_RECIPE_VERSION,
     RewardBreakdown,
     RewardConfig,
     audit_reward,
     shape_reward,
 )
-from areal_pacman.level1.trajectories import audit_step_environment_evidence
-from maapacman.env.ghost_modes import validate_ghost_mode, validate_ghost_state
-from maapacman.env.pygame_environment import ruleset_revision
+from pacman_recipe.level1.trajectories import audit_step_environment_evidence
+from pacman_env.env.ghost_modes import validate_ghost_mode, validate_ghost_state
+from pacman_env.env.pygame_environment import ruleset_revision
 
 
 AUDIT_CONTRACT_VERSION = "maapacman-level1-planner-audit-v4"
@@ -108,8 +108,8 @@ def _generator_provenance(source_paths: list[Path]) -> dict[str, Any]:
             "sha256": hashlib.sha256(source_path.read_bytes()).hexdigest()
         }
     return {
-        "areal_pacman_commit": commit,
-        "areal_pacman_dirty": dirty,
+        "pacman_recipe_commit": commit,
+        "pacman_recipe_dirty": dirty,
         "sources": sources,
     }
 
@@ -118,11 +118,11 @@ def _audit_generator_provenance() -> dict[str, Any]:
     return _generator_provenance(
         [
             Path(__file__),
-            REPO_ROOT / "areal_pacman" / "level1" / "level1_dataset.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "recipe.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "prompts.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "rewards.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "trajectories.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "level1_dataset.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "recipe.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "prompts.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "rewards.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "trajectories.py",
         ]
     )
 

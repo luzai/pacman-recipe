@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from areal_pacman.level1.token_constraints import (
+from pacman_recipe.level1.token_constraints import (
     ObjectiveParseError,
     ObjectiveTokenConstraint,
 )

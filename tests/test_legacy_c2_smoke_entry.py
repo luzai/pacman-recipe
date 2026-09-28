@@ -19,6 +19,7 @@ def test_legacy_entry(tmp_path):
         pytest.skip("bash unavailable")
     scripts = tmp_path / "scripts/level1/train"
     scripts.mkdir(parents=True)
+    shutil.copyfile(ROOT / "scripts/pacman_paths.sh", tmp_path / "scripts/pacman_paths.sh")
     wrapper = scripts / NAME
     shutil.copyfile(ROOT / "scripts/level1/train" / NAME, wrapper)
     (scripts / "run_level1_training.sh").write_text(

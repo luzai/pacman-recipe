@@ -1,22 +1,9 @@
-"""Strict model-completion parsing for the MaaPacman production recipe."""
+"""Compatibility entrypoint for pacman_recipe.actions."""
+import importlib
+import runpy
+import sys
 
-from __future__ import annotations
-
-from maapacman.env import Action
-
-
-class ActionParseError(ValueError):
-    """Raised when a completion is not one canonical MaaPacman token."""
-
-
-def parse_action(completion: str) -> Action:
-    """Parse exactly one canonical token after trimming surrounding whitespace."""
-    if not isinstance(completion, str):
-        raise ActionParseError("completion must be a string")
-    token = completion.strip()
-    try:
-        return Action(token)
-    except ValueError as exc:
-        raise ActionParseError(
-            f"invalid completion {completion!r}; expected exactly U, D, L, R, or S"
-        ) from exc
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.actions', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.actions')

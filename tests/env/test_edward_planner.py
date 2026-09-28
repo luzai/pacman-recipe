@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from dataclasses import dataclass
 
-from maapacman.env.state import Position
-from maapacman.planner import EdwardPlanner, GhostETA
+from pacman_env.env.state import Position
+from pacman_env.planner import EdwardPlanner, GhostETA
 
 
 @dataclass(frozen=True)

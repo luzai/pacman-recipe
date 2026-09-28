@@ -1,27 +1,9 @@
-"""Backward-compatible imports for the synthetic maze suite."""
+"""Compatibility entrypoint for pacman_recipe.maze_suite."""
+import importlib
+import runpy
+import sys
 
-from .synthetic.maze_suite import (
-    SPLIT_SIZES,
-    SUITE_NAME,
-    SUITE_PATH,
-    layout_hash,
-    load_layout_registry,
-    load_suite,
-    maze_records,
-    split_layout_names,
-    suite_summary,
-    topology_hash,
-)
-
-__all__ = [
-    "SPLIT_SIZES",
-    "SUITE_NAME",
-    "SUITE_PATH",
-    "layout_hash",
-    "load_layout_registry",
-    "load_suite",
-    "maze_records",
-    "split_layout_names",
-    "suite_summary",
-    "topology_hash",
-]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.maze_suite', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.maze_suite')

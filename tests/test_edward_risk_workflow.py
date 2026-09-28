@@ -10,12 +10,12 @@ import pytest
 import torch
 import test_level1_recipe as legacy
 
-from maapacman.planner import EdwardPlanner
-from areal_pacman.level1.prompts import prompt_contract_metadata
-from areal_pacman.level1.recipe import recipe_contract_metadata
-from areal_pacman.level1.token_constraints import ObjectiveTokenConstraint
-from areal_pacman.level1.trajectories import audit_trajectory
-from areal_pacman.level1.workflow import ModelTurn, PacmanImageOnlyWorkflow, PacmanNativeVisionWorkflow
+from pacman_env.planner import EdwardPlanner
+from pacman_recipe.level1.prompts import prompt_contract_metadata
+from pacman_recipe.level1.recipe import recipe_contract_metadata
+from pacman_recipe.level1.token_constraints import ObjectiveTokenConstraint
+from pacman_recipe.level1.trajectories import audit_trajectory
+from pacman_recipe.level1.workflow import ModelTurn, PacmanImageOnlyWorkflow, PacmanNativeVisionWorkflow
 from test_level1_recipe import (
     FakeObjectiveTokenizer, OneStepEnv, TwoStepEnv, make_episode_row,
 )
@@ -48,7 +48,7 @@ class ChoosingWorkflow(PacmanImageOnlyWorkflow):
 @pytest.fixture
 def episode():
     with patch("transformers.AutoTokenizer.from_pretrained", return_value=FakeObjectiveTokenizer()), patch(
-        "areal_pacman.level1.workflow.EdwardPlanner", FallbackFirstPlanner
+        "pacman_recipe.level1.episode.EdwardPlanner", FallbackFirstPlanner
     ):
         workflow = ChoosingWorkflow(
             env_factory=TwoStepEnv, tokenizer_path="test-tokenizer",
@@ -148,8 +148,17 @@ def test_invalid_mode_rejected_before_rollout(edward, mode):
     (False, "d0b0be31ccd26d7f73342f0a4b820ae18c92f7e124b135bf158403e08bf8cd90"),
     (True, "48b7b0dbf1e2639cd3943e7a81dcc19830314970587f66a44bd5732d6dd78f5c"),
 ])
-def test_default_prompt_fingerprint_matches_da1639a(edward, expected):
-    assert prompt_contract_metadata("live_state_v3", edward_options=edward)["prompt_template_sha256"] == expected
+def test_archived_prompt_fingerprint_matches_da1639a(edward, expected):
+    from pacman_recipe.level1 import legacy_prompts_v1
+
+    assert legacy_prompts_v1.prompt_contract_metadata("live_state_v3", edward_options=edward)["prompt_template_sha256"] == expected
+    current = prompt_contract_metadata("live_state_v3", edward_options=edward)
+    if edward:
+        assert current["prompt_version"] == "edward-option-code-v2"
+        assert current["prompt_template_sha256"] != expected
+    else:
+        # Current primitive actions share the explicit single-death game rules.
+        assert current["prompt_template_sha256"] == "932fb0c84a8b4bd637f4386ca1eec0fd164dec9b4411bde5740ad0d63fc68cfe"
 
 
 def test_native_rollout_records_actual_fallback_sampling_support():
@@ -173,7 +182,7 @@ def test_native_rollout_records_actual_fallback_sampling_support():
             edward_options=True, edward_fallback_mode="risk_ranked",
             image_prompt_style="live_state_v3", reward_objective_contract="option_return_raw_v1",
         )
-    with patch("areal_pacman.level1.workflow.EdwardPlanner", FallbackFirstPlanner), patch.dict(
+    with patch("pacman_recipe.level1.episode.EdwardPlanner", FallbackFirstPlanner), patch.dict(
         sys.modules, {
             "areal.api": SimpleNamespace(ModelRequest=Request),
             "areal.utils.data": SimpleNamespace(concat_padded_tensors=lambda samples: samples[0]),
@@ -194,7 +203,7 @@ def test_repeated_fallback_runs_until_real_episode_terminal():
             return ()
 
     with patch("transformers.AutoTokenizer.from_pretrained", return_value=FakeObjectiveTokenizer()), patch(
-        "areal_pacman.level1.workflow.EdwardPlanner", NoNormalOptions
+        "pacman_recipe.level1.episode.EdwardPlanner", NoNormalOptions
     ):
         workflow = ChoosingWorkflow(
             tokenizer_path="test-tokenizer", edward_options=True,
@@ -229,9 +238,9 @@ def test_train_and_eval_kwargs_forward_mode():
 @pytest.mark.parametrize("strategy", ["normal_max", "RISK_FALLBACK"])
 def test_real_processor_prompt_budget(strategy):
     from transformers import AutoProcessor
-    from maapacman.env import PygamePacmanEnv
-    from maapacman.planner import PlannerCandidate
-    from areal_pacman.level1.prompts import (
+    from pacman_env.env import PygamePacmanEnv
+    from pacman_env.planner import PlannerCandidate
+    from pacman_recipe.level1.prompts import (
         build_image_messages, encode_png, edward_system_prompt, render_edward_decision_prompt,
     )
 

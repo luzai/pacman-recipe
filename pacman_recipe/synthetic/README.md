@@ -1,7 +1,7 @@
 # Historical synthetic package
 
 This package contains the deterministic text/maze Pacman environment and its
-historical research utilities. It is separate from production MaaPacman
+historical research utilities. It is separate from production Pacman
 Level-1:
 
 - `env.py`: synthetic `PacmanEnv`.
@@ -11,5 +11,5 @@ Level-1:
   evaluation, and rendering.
 - `configs.py`: historical synthetic AReaL configuration adapter.
 
-New synthetic code should import from `areal_pacman.synthetic`. Root modules
+New synthetic code should import from `pacman_recipe.synthetic`. Root modules
 remain compatibility shims.

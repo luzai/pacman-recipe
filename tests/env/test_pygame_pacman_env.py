@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
-from maapacman.env import (
+from pacman_env.env import (
     Action,
     EnvironmentClosedError,
     EpisodeFinishedError,
@@ -25,9 +25,9 @@ from maapacman.env import (
     route_to_nearest,
     transition,
 )
-from maapacman.env.level import GHOST_DOOR
-from maapacman.env._pygame_worker import _PygameBridge
-from maapacman.planner import EdwardPlanner
+from pacman_env.env.level import GHOST_DOOR
+from pacman_env.env._pygame_worker import _PygameBridge
+from pacman_env.planner import EdwardPlanner
 
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -2,7 +2,7 @@
 
 Status: two-stage source/recipe integration; final C2 inference and game-clear
 acceptance remain unverified. Dated evidence below is historical, not new gates.
-Environment provider: bundled `maapacman.PygamePacmanEnv` API `3.0`
+Environment provider: bundled `pacman_env.PygamePacmanEnv` API `3.0`
 Environment ID: `pacman-python-level1-ghostdoor-v3`
 Dataset contract: `maapacman-level1-dataset-v4`
 Production C1/C2 dataset default: `512` underlying `env.step` calls
@@ -14,13 +14,13 @@ Contract synchronized with code: `2026-09-04`
 Historical remote evidence last verified: `2026-07-23`
 
 The headless environment implementation is bundled in this repository under
-`maapacman/`; there is no separate MaaPacman checkout.
+`pacman_env/`; it uses the sibling `pacman-python` game checkout.
 
 Example checkout layout:
 
 ```text
 ${WORKSPACE_ROOT}/AReaL
-${WORKSPACE_ROOT}/areal-pacman
+${WORKSPACE_ROOT}/pacman-recipe
 ${WORKSPACE_ROOT}/pacman-python
 ```
 
@@ -82,10 +82,10 @@ distributed GPU, final checkpoint inference or game-completion results.
 AReaL fork
   owns distributed training, rollout workers and checkpoint orchestration
 
-areal-pacman repository
+pacman-recipe repository
   maapacman package owns the external process wrapper, frame-boundary action
   protocol, RGB Surface extraction and stable environment API
-  areal_pacman package owns episode datasets, prompts, model calls, parsing,
+  pacman_recipe package owns episode datasets, prompts, model calls, parsing,
   reward shaping, trajectory records, AReaL configuration and evaluation
 
 pacman-python
@@ -93,20 +93,20 @@ pacman-python
 ```
 
 `pacman-python` is a sibling dependency and must remain source-clean. It must
-not import `maapacman` or AReaL.
+not import `pacman_env` or AReaL.
 
 ### 1.1 Production environment API
 
 Production level-1 files import only `PygamePacmanEnv`:
 
-- `areal_pacman/level1/workflow.py`
-- `areal_pacman/level1/level1_dataset.py`
+- `pacman_recipe/level1/workflow.py`
+- `pacman_recipe/level1/level1_dataset.py`
 - `train_areal.py` production dry-run path
 - `scripts/level1/dataset/write_level1_manifest.py`
 - `tests/test_level1_recipe.py`
 
 The accepted environment import is
-`from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig`. The recipe
+`from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig`. The recipe
 does not define or expose an alternative Pacman environment contract.
 
 ## 2. Episode architecture
@@ -139,12 +139,12 @@ create hidden game frames.
 ## 3. Required installation and mirror
 
 The production training node needs three fixed source layers. The
-`areal-pacman` checkout contains both Python packages, so a standalone
-MaaPacman repository or installation is not required:
+`pacman-recipe` checkout contains both Python packages, so a standalone
+Pacman repository or installation is not required:
 
 ```text
 ${AREAL_ROOT}
-${AREAL_PACMAN_ROOT}
+${PACMAN_RECIPE_ROOT}
 ${PACMAN_PYTHON_ROOT}
 ```
 
@@ -179,7 +179,7 @@ existing environment:
 OWNER_ROOT="${OWNER_ROOT:?set an owner-controlled project root}"
 CODE_ROOT="${CODE_ROOT:-$OWNER_ROOT/maapacman-stack}"
 AREAL_ROOT="${AREAL_ROOT:-$OWNER_ROOT/AReaL}"
-AREAL_PACMAN_ROOT="${AREAL_PACMAN_ROOT:-$CODE_ROOT/areal-pacman}"
+PACMAN_RECIPE_ROOT="${PACMAN_RECIPE_ROOT:-$CODE_ROOT/pacman-recipe}"
 PACMAN_PYTHON_ROOT="${PACMAN_PYTHON_ROOT:-$CODE_ROOT/pacman-python}"
 ENV_ROOT="${ENV_ROOT:-$OWNER_ROOT/.conda/envs/maapacman-rl}"
 PYTHON="${PYTHON:-$ENV_ROOT/bin/python}"
@@ -191,11 +191,11 @@ conda create -y -p "$ENV_ROOT" --clone "$BASE_ENV"
 "$PYTHON" -m pip install "pygame==2.6.1"
 "$PYTHON" -m pip install \
   -e "$AREAL_ROOT" \
-  -e "$AREAL_PACMAN_ROOT"
+  -e "$PACMAN_RECIPE_ROOT"
 ```
 
-Pin and record the AReaL, areal-pacman, and pacman-python Git revisions before
-training. The bundled `maapacman` package shares the areal-pacman revision.
+Pin and record the AReaL, pacman-recipe, and pacman-python Git revisions before
+training. The bundled `pacman_env` package shares the pacman-recipe revision.
 Treat the `pacman-python` mirror as read-only during rollout. Per-worker copies,
 `agent_state.json`, pygame processes, and IPC remain disposable under `/tmp`.
 
@@ -205,7 +205,7 @@ compatibility but is not the production installation recipe.
 
 An unrelated legacy `pacman_gym` Conda environment was audited but not
 modified. It used Python `3.11.15` and lacked pygame and the bundled
-`maapacman` module, so it was not the accepted recipe environment.
+`pacman_env` module, so it was not the accepted recipe environment.
 
 The launcher sets `SDL_VIDEODRIVER=dummy` and `SDL_AUDIODRIVER=dummy`.
 Xvfb is not part of the recipe runtime or deployment dependencies. Dated
@@ -218,7 +218,7 @@ current API-v3 acceptance result.
 ```python
 import os
 
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
 
 env = PygamePacmanEnv(
     PygamePacmanEnvConfig(
@@ -250,7 +250,7 @@ if env.config.max_steps not in {32, 256, 512, 2000}:
     raise RuntimeError("unsupported level-1 episode cap")
 ```
 
-It must import only the public `maapacman.env` API, not the worker module.
+It must import only the public `pacman_env.env` API, not the worker module.
 
 ## 5. Dataset contract
 
@@ -336,7 +336,7 @@ or a `5 s` model call is applied to the same returned state.
 Every rollout worker owns a unique temporary runtime directory, original script
 copy, resource link/private copy, pygame process, IPC channel, state file, and
 Surface. Workers do not own an X server or `DISPLAY`; pygame renders through
-SDL dummy and MaaPacman reads the completed pygame Surface directly.
+SDL dummy and Pacman reads the completed pygame Surface directly.
 
 ### Current IPC contract and historical timing evidence
 
@@ -395,7 +395,7 @@ training gate.
 
 ## 7. Reward ownership
 
-MaaPacman returns the original game score delta:
+Pacman returns the original game score delta:
 
 | Original event | Base reward |
 |---|---:|
@@ -672,7 +672,7 @@ worse than base. Sparse training must therefore not be scaled.
 The next isolated change is
 `alpha * (nearest_normal_pellet_distance_before -
 nearest_normal_pellet_distance_after)` with `alpha=1`, using BFS over the level
-representation owned by the bundled `maapacman` package. Distance and reward
+representation owned by the bundled `pacman_env` package. Distance and reward
 terms must be logged and independently audited; `pacman-python` remains
 unchanged.
 
@@ -745,7 +745,7 @@ multi_modal_input[pixel_values, image_grid_thw]
 ```
 
 By the end of this recorded migration, the recipe provided
-`areal_pacman.level1.workflow.PacmanNativeVisionWorkflow`, and the official 3B
+`pacman_recipe.level1.workflow.PacmanNativeVisionWorkflow`, and the official 3B
 smoke config selected it. The workflow called `InferenceEngine.agenerate()`
 directly, required exact equality between processor `input_ids` and rollout
 response `input_tokens`, and returned one complete multimodal training row per
@@ -798,11 +798,11 @@ and checkpoint names.
 ### Local gate — completed
 
 - `pacman-python` source checkout was clean at commit `d258122e...`.
-- MaaPacman wrapper used the original pygame Surface.
+- Pacman wrapper used the original pygame Surface.
 - Windows native and SDL dummy produced identical reset and `L,L,L,S` hashes.
 - `PygamePacmanEnv` tests passed `6/6`, including four concurrent workers.
-- The complete MaaPacman unittest suite passed `23/23`.
-- The complete areal-pacman pytest suite passed `98` tests and `11` subtests.
+- The complete Pacman unittest suite passed `23/23`.
+- The complete pacman-recipe pytest suite passed `98` tests and `11` subtests.
 
 ### Linux display gate — completed on an 8×H100 test node
 
@@ -821,7 +821,7 @@ Xvfb was not installed or used and was not part of that historical recipe.
 - Direct PygamePacmanEnv tests, RGB parity, 4/16-worker isolation, and the
   complete oracle had passed in that persistent environment.
 - This historical Node1 gate used the earlier three-editable-package layout.
-  The current release folds `maapacman` into the `areal-pacman` checkout; the
+  The current release folds `pacman_env` into the `pacman-recipe` checkout; the
   recorded direct pygame gates and deployed recipe suite result (`98` tests and
   `11` subtests) are retained here as run history.
 - Node1 used a node-local AReaL development checkout at base `da645a37...`

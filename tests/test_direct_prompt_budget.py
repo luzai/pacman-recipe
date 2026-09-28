@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from areal_pacman.level1.prompts import build_image_messages, encode_png
+from pacman_recipe.level1.prompts import build_image_messages, encode_png
 from scripts.level1.train import check_direct_prompt_budget as budget
 
 
@@ -87,7 +87,7 @@ def test_conservative_contexts_cover_bounded_direct_fields():
 
 
 def test_conversion_matches_actual_native_workflow_without_importing_runtime():
-    source = Path(__file__).resolve().parents[1] / "areal_pacman/level1/workflow.py"
+    source = Path(__file__).resolve().parents[1] / "pacman_recipe/level1/workflow.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     cls = next(
         node
@@ -100,7 +100,11 @@ def test_conversion_matches_actual_native_workflow_without_importing_runtime():
         if isinstance(node, ast.FunctionDef) and node.name == "_pil_and_chat_messages"
     )
     method.decorator_list = []
-    namespace = {"Any": Any, "base64": base64, "BytesIO": BytesIO}
+    namespace = {
+        "Any": Any, "base64": base64, "BytesIO": BytesIO,
+        "__name__": "pacman_recipe.level1.workflow",
+        "__package__": "pacman_recipe.level1",
+    }
     exec(  # noqa: S102 - execute only the checked-in pure conversion method, not runtime imports.
         compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"),
         namespace,
@@ -167,7 +171,7 @@ def test_nonproduction_image_or_invalid_budget_fails():
 
 
 def test_real_headless_capture_never_constructs_edward(monkeypatch):
-    from maapacman import planner
+    from pacman_env import planner
 
     def forbidden(*args, **kwargs):
         raise AssertionError("C1 preflight must never construct or call Edward")

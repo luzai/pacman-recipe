@@ -1,5 +1,11 @@
 # Configurations
 
+## slime C2
+
+`slime/c2.yaml` fixes the new binary-reward, single-death contract with 40 train
+seeds and 4 validation seeds. This differs from the historical AReaL recipes
+below. See [slime acceptance](../docs/slime-migration.md); GPU validation is pending.
+
 ## Production Level-1
 
 The two formal recipes share the original Level-1 map and a **512 underlying
@@ -11,7 +17,7 @@ environment-step** horizon, not 512 model calls or option selections.
 | Ghost mode | `disabled` | `normal` |
 | Episode lives | First death ends episode | Three reserve lives; fourth death is game over |
 | Action protocol | `direct-open-action-token-v1` | `edward-option-code-v1` |
-| Prompt version | `live-state-direct-action-v3` | `edward-option-code-v1` |
+| Prompt version | `live-state-direct-action-v3` | `edward-option-code-v2` |
 | Output | One legal `U/D/L/R`; no `S`, JSON, or Edward | One advertised option code mapped to `C*/A*/E*`; no direction or JSON |
 | `edward_options` | `false` | `true` |
 | `action_token_choice` / `open_action_mask` | `true` / `true` | `false` / `false`; dynamic option-candidate mask instead |
@@ -86,6 +92,6 @@ Machine-specific synthetic/text and early vision experiment configurations are
 not shipped on this release branch. They are not part of the Level-1
 reproduction path.
 
-Production Level-1 uses the bundled `maapacman.PygamePacmanEnv`; it does not
-require a separate MaaPacman checkout. Configurations under `level1/archive/`
+Production Level-1 uses the bundled `pacman_env.PygamePacmanEnv`; it does not
+require a separate Pacman checkout. Configurations under `level1/archive/`
 are not the default production path.

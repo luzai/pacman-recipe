@@ -6,12 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from areal_pacman.level1.backplay import (
+from pacman_recipe.level1.backplay import (
     NoLearnableRestartState, aggregate_probe_results, build_restart_bank,
     load_restart_bank, load_restart_state, select_restart_state,
 )
-from maapacman.env._saved_state import checksum
-from maapacman.planner import PlannerCandidate, PlannerDecision
+from pacman_env.env._saved_state import checksum
+from pacman_env.planner import PlannerCandidate, PlannerDecision
 
 
 class TeacherEnv:

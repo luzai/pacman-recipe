@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from areal_pacman.level1.level1_dataset import (
+from pacman_recipe.level1.level1_dataset import (
     generate_balanced_corridor_rows,
     write_hf_dataset,
     write_jsonl,

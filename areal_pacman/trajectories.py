@@ -1,17 +1,9 @@
-"""Backward-compatible imports for production Level-1 trajectories."""
+"""Compatibility entrypoint for pacman_recipe.trajectories."""
+import importlib
+import runpy
+import sys
 
-from .level1.trajectories import (
-    REQUIRED_ENV_FIELDS,
-    REQUIRED_STEP_FIELDS,
-    audit_trajectory,
-    summarize_episodes,
-    write_trajectory,
-)
-
-__all__ = [
-    "REQUIRED_ENV_FIELDS",
-    "REQUIRED_STEP_FIELDS",
-    "audit_trajectory",
-    "summarize_episodes",
-    "write_trajectory",
-]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.trajectories', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.trajectories')

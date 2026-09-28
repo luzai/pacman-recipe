@@ -1,25 +1,9 @@
-"""Backward-compatible imports for the production Level-1 workflow."""
+"""Compatibility entrypoint for pacman_recipe.workflow."""
+import importlib
+import runpy
+import sys
 
-from .level1.workflow import (
-    ACTION_MASK_BIT,
-    EXPECTED_ACTIONS,
-    MOVEMENT_ACTIONS,
-    OPPOSITE_ACTION,
-    ModelTurn,
-    PacmanImageOnlyWorkflow,
-    PacmanNativeVisionWorkflow,
-    preferred_open_actions,
-    validate_env_spec,
-)
-
-__all__ = [
-    "ACTION_MASK_BIT",
-    "EXPECTED_ACTIONS",
-    "MOVEMENT_ACTIONS",
-    "OPPOSITE_ACTION",
-    "ModelTurn",
-    "PacmanImageOnlyWorkflow",
-    "PacmanNativeVisionWorkflow",
-    "preferred_open_actions",
-    "validate_env_spec",
-]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.workflow', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.workflow')

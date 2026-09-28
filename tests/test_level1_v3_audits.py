@@ -11,17 +11,17 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from maapacman.env.pygame_environment import ruleset_revision
+from pacman_env.env.pygame_environment import ruleset_revision
 
-from areal_pacman.level1 import level1_dataset
-from areal_pacman.level1.level1_dataset import write_jsonl
-from areal_pacman.level1.rewards import (
+from pacman_recipe.level1 import level1_dataset
+from pacman_recipe.level1.level1_dataset import write_jsonl
+from pacman_recipe.level1.rewards import (
     REWARD_RECIPE_VERSION,
     RewardConfig,
     audit_reward,
     shape_reward,
 )
-from areal_pacman.level1.trajectories import (
+from pacman_recipe.level1.trajectories import (
     REQUIRED_ENV_FIELDS,
     audit_step_environment_evidence,
     audit_trajectory,
@@ -459,7 +459,7 @@ def test_trajectory_rejects_legacy_or_mismatched_maapacman_repository():
     )
 
     legacy = copy.deepcopy(payload)
-    legacy["source_revisions"]["MaaPacman"] = {
+    legacy["source_revisions"]["Pacman"] = {
         "commit": "4" * 40,
         "dirty": False,
     }
@@ -553,15 +553,15 @@ def test_four_v3_dataset_roles_are_distinct_and_complete():
 
 def test_audit_generator_provenance_uses_relative_source_hashes():
     provenance = _audit_generator_provenance()
-    assert len(provenance["areal_pacman_commit"]) == 40
-    assert isinstance(provenance["areal_pacman_dirty"], bool)
+    assert len(provenance["pacman_recipe_commit"]) == 40
+    assert isinstance(provenance["pacman_recipe_dirty"], bool)
     assert {
         "scripts/level1/dataset/prepare_level1_v3_audits.py",
-        "areal_pacman/level1/level1_dataset.py",
-        "areal_pacman/level1/recipe.py",
-        "areal_pacman/level1/prompts.py",
-        "areal_pacman/level1/rewards.py",
-        "areal_pacman/level1/trajectories.py",
+        "pacman_recipe/level1/level1_dataset.py",
+        "pacman_recipe/level1/recipe.py",
+        "pacman_recipe/level1/prompts.py",
+        "pacman_recipe/level1/rewards.py",
+        "pacman_recipe/level1/trajectories.py",
     } == set(provenance["sources"])
     assert all(
         not Path(path).is_absolute() and len(record["sha256"]) == 64
@@ -754,16 +754,16 @@ def test_split_generator_writes_relative_immutable_manifest(tmp_path):
     assert isinstance(manifest["environment"]["pacman_python_dirty"], bool)
     assert isinstance(manifest["environment"]["maapacman_dirty"], bool)
     generator = manifest["generator_provenance"]
-    assert len(generator["areal_pacman_commit"]) == 40
-    assert isinstance(generator["areal_pacman_dirty"], bool)
+    assert len(generator["pacman_recipe_commit"]) == 40
+    assert isinstance(generator["pacman_recipe_dirty"], bool)
     assert {
         "scripts/level1/dataset/prepare_level1_dataset.py",
         "scripts/level1/dataset/prepare_level1_v3_audits.py",
-        "areal_pacman/level1/level1_dataset.py",
-        "areal_pacman/level1/recipe.py",
-        "areal_pacman/level1/prompts.py",
-        "areal_pacman/level1/rewards.py",
-        "areal_pacman/level1/trajectories.py",
+        "pacman_recipe/level1/level1_dataset.py",
+        "pacman_recipe/level1/recipe.py",
+        "pacman_recipe/level1/prompts.py",
+        "pacman_recipe/level1/rewards.py",
+        "pacman_recipe/level1/trajectories.py",
     } == set(generator["sources"])
     assert all(
         not Path(path).is_absolute() and len(record["sha256"]) == 64
@@ -990,7 +990,7 @@ def test_run_manifest_records_three_repositories_and_bundled_revision(
         "areal-pacman",
         "AReaL",
     }
-    assert manifest["areal_pacman_revision"] == "2" * 40
+    assert manifest["pacman_recipe_revision"] == "2" * 40
     assert manifest["maapacman_revision"] == "2" * 40
     assert manifest["environment_provenance"]["maapacman_commit"] == "2" * 40
 

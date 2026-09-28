@@ -1,5 +1,9 @@
-"""Backward-compatible imports for production Level-1 rewards."""
+"""Compatibility entrypoint for pacman_recipe.rewards."""
+import importlib
+import runpy
+import sys
 
-from .level1.rewards import RewardBreakdown, RewardConfig, audit_reward, shape_reward
-
-__all__ = ["RewardBreakdown", "RewardConfig", "audit_reward", "shape_reward"]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.rewards', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.rewards')

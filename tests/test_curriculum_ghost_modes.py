@@ -11,12 +11,12 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
-from maapacman.env._pygame_worker import _PygameBridge
-from maapacman.env.ghost_modes import validate_ghost_state
-from maapacman.planner import EdwardPlanner
-from areal_pacman.level1.level1_dataset import make_episode_row, validate_episode_row
-from areal_pacman.level1.recipe import load_recipe_settings
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.env._pygame_worker import _PygameBridge
+from pacman_env.env.ghost_modes import validate_ghost_state
+from pacman_env.planner import EdwardPlanner
+from pacman_recipe.level1.level1_dataset import make_episode_row, validate_episode_row
+from pacman_recipe.level1.recipe import load_recipe_settings
 from scripts.level1.dataset.prepare_level1_dataset import (
     _prepare_dataset,
     audit_episode_spec_row,
@@ -35,7 +35,7 @@ def _small_recipe(tmp_path, stage, *, train=2, validation=1):
 
 
 def test_ghost_mode_schema_uses_new_dataset_contract() -> None:
-    from areal_pacman.level1.level1_dataset import DATASET_CONTRACT_VERSION
+    from pacman_recipe.level1.level1_dataset import DATASET_CONTRACT_VERSION
     from scripts.level1.dataset.prepare_level1_dataset import (
         DATASET_PREPARATION_CONTRACT_VERSION,
     )
@@ -80,7 +80,7 @@ def test_replay_consumers_forward_recorded_mode(relative):
 
 def test_edward_prompt_keeps_common_observation_fields_between_modes():
     # Exercise the real pure renderer without importing distributed AReaL.
-    from areal_pacman.level1.prompts import compact_edward_decision_prompt as render
+    from pacman_recipe.level1.prompts import compact_edward_decision_prompt as render
     constraint = SimpleNamespace(rendered_choices=("0",))
     prompts = [
         render({"ghosts": ghosts}, (), constraint)
@@ -290,8 +290,8 @@ def test_disabled_mode_rejects_ghost_events():
 
 @pytest.mark.parametrize("mode", ["disabled", "normal"])
 def test_parse_failure_keeps_fail_closed_ghost_evidence(mode):
-    from areal_pacman.level1.trajectories import audit_trajectory
-    from areal_pacman.level1.workflow import PacmanImageOnlyWorkflow
+    from pacman_recipe.level1.trajectories import audit_trajectory
+    from pacman_recipe.level1.workflow import PacmanImageOnlyWorkflow
 
     row = make_episode_row(
         1,
@@ -330,7 +330,7 @@ def test_training_preflight_rejects_wrong_stage_data(tmp_path, monkeypatch, stag
         train_areal,
         "_load_workflow",
         lambda _: SimpleNamespace(
-            __module__="areal_pacman.level1.workflow",
+            __module__="pacman_recipe.level1.workflow",
             __name__="PacmanNativeVisionWorkflow",
         ),
     )
@@ -362,7 +362,7 @@ def test_training_preflight_rejects_wrong_stage_data(tmp_path, monkeypatch, stag
 @pytest.mark.parametrize("stage", [1, 2])
 def test_new_config_sections_support_omegaconf_structured_loading(stage):
     from omegaconf import OmegaConf
-    from areal_pacman.level1.recipe import (
+    from pacman_recipe.level1.recipe import (
         DatasetGenerationConfig,
         EnvironmentConfig,
         PlannerAuditConfig,

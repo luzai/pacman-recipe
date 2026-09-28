@@ -8,10 +8,10 @@ import json
 from pathlib import Path
 import time
 
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
-from maapacman.actions import coerce_action
-from maapacman.env._saved_state import checksum
-from maapacman.planner import EdwardPlanner
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.actions import coerce_action
+from pacman_env.env._saved_state import checksum
+from pacman_env.planner import EdwardPlanner
 
 
 def main() -> None:

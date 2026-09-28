@@ -1,18 +1,6 @@
-"""Public MaaPacman Python package."""
+"""Compatibility imports; use pacman_env in new code."""
+from importlib import import_module as _import_module
 
-from .actions import ACTION_ORDER, Action
-from .planner import (
-    EdwardPlanner,
-    EdwardSafetyRefusal,
-    PlannerCandidate,
-    PlannerDecision,
-)
-
-__all__ = [
-    "ACTION_ORDER",
-    "Action",
-    "EdwardPlanner",
-    "EdwardSafetyRefusal",
-    "PlannerCandidate",
-    "PlannerDecision",
-]
+_canonical = _import_module('pacman_env')
+__all__ = getattr(_canonical, "__all__", [n for n in vars(_canonical) if not n.startswith("_")])
+globals().update({n: getattr(_canonical, n) for n in __all__})

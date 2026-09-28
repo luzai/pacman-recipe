@@ -1,19 +1,9 @@
-"""Backward-compatible imports for synthetic environment rendering."""
+"""Compatibility entrypoint for pacman_recipe.vision."""
+import importlib
+import runpy
+import sys
 
-from .synthetic.vision import (
-    COLORS,
-    env_png_bytes,
-    image_data_url,
-    image_png_bytes,
-    image_sha256,
-    render_env_image,
-)
-
-__all__ = [
-    "COLORS",
-    "env_png_bytes",
-    "image_data_url",
-    "image_png_bytes",
-    "image_sha256",
-    "render_env_image",
-]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.vision', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.vision')

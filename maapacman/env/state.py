@@ -1,10 +1,9 @@
-"""Small coordinate type used by level-1 verification tooling."""
+"""Compatibility entrypoint for pacman_env.env.state."""
+import importlib
+import runpy
+import sys
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-
-@dataclass(frozen=True, order=True)
-class Position:
-    row: int
-    col: int
+if __name__ == "__main__":
+    runpy.run_module('pacman_env.env.state', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_env.env.state')

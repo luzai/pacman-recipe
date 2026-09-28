@@ -307,7 +307,7 @@ def _validate_release_stage_contract(
 ) -> None:
     """Fail closed on drift in either public two-stage training recipe."""
 
-    from areal_pacman.level1.recipe import (
+    from pacman_recipe.level1.recipe import (
         DIRECT_ACTION_PROTOCOL,
         DIRECT_PROMPT_VERSION,
         EDWARD_OPTION_PROTOCOL,
@@ -597,7 +597,7 @@ def _build_workflow_kwargs(
     from types import SimpleNamespace
     from collections.abc import Mapping
     from omegaconf import OmegaConf
-    from areal_pacman.level1.recipe import recipe_contract_metadata
+    from pacman_recipe.level1.recipe import recipe_contract_metadata
 
     def plain(value):
         if OmegaConf.is_config(value):
@@ -719,8 +719,8 @@ def _build_workflow_kwargs(
 def _validate_release_dataset_inputs(config_path: Path, train_path: str, valid_path: str):
     """Bind formal training inputs to the immutable bundle, not just its rows."""
     import hashlib
-    from areal_pacman.level1.recipe import load_recipe_document, recipe_contract_metadata
-    from areal_pacman.level1.level1_dataset import environment_metadata, repository_revisions
+    from pacman_recipe.level1.recipe import load_recipe_document, recipe_contract_metadata
+    from pacman_recipe.level1.level1_dataset import environment_metadata, repository_revisions
     from scripts.level1.dataset.prepare_level1_dataset import validate_prepared_dataset_manifest
 
     raw = load_recipe_document(config_path)
@@ -762,8 +762,8 @@ def _production_dry_run(
         "maapacman-level1-ghostdoor-v3",
     }:
         return False
-    from areal_pacman.level1.level1_dataset import validate_episode_row
-    from maapacman.env import PygamePacmanEnv
+    from pacman_recipe.level1.level1_dataset import validate_episode_row
+    from pacman_env.env import PygamePacmanEnv
 
     epochs = int(_yaml_scalar(text, "total_train_epochs"))
     workflow_path = _yaml_scalar(text, "workflow")
@@ -771,10 +771,12 @@ def _production_dry_run(
         raise ValueError("production level-1 training must run at least one epoch")
     workflow_cls = _load_workflow(workflow_path)
     if workflow_cls.__module__ not in {
+        "pacman_recipe.workflow",
+        "pacman_recipe.level1.workflow",
         "areal_pacman.workflow",
         "areal_pacman.level1.workflow",
     }:
-        raise ValueError("production config must use areal_pacman.workflow")
+        raise ValueError("production config must use pacman_recipe.workflow")
 
     effective_args = config_args or ["--config", str(config_path)]
     dataset_overrides = [
@@ -794,8 +796,8 @@ def _production_dry_run(
         dataset_matches = re.findall(r"(?m)^\s+path:\s*([^#\r\n]+)", text)
         if len(dataset_matches) < 2:
             raise ValueError("config must declare train and validation dataset paths")
-    from areal_pacman.level1.recipe import EnvironmentConfig, load_recipe_settings
-    from maapacman.env import PygamePacmanEnvConfig
+    from pacman_recipe.level1.recipe import EnvironmentConfig, load_recipe_settings
+    from pacman_env.env import PygamePacmanEnvConfig
 
     environment, _ = load_recipe_settings(config_path)
     environment = EnvironmentConfig(
@@ -858,7 +860,7 @@ def _production_dry_run(
     print(f"action_tokens={','.join(spec.action_tokens)}")
     if validate_areal or reward_ablation is not None or exploratory_budget:
         from areal.api.cli_args import load_expr_config
-        from areal_pacman.synthetic.configs import PacmanAgentConfig
+        from pacman_recipe.synthetic.configs import PacmanAgentConfig
 
         config, _ = load_expr_config(effective_args, PacmanAgentConfig)
         _validate_reward_objective_contract(config)
@@ -1029,9 +1031,9 @@ def _production_dry_run(
 
 
 # AReaL ships this to the rollout workers over JSON RPC, so it must be an
-# import path, never a function object. See areal_pacman/level1/dynamic_filter.py.
+# import path, never a function object. See pacman_recipe/level1/dynamic_filter.py.
 _GROUP_REWARD_DEGENERACY_FILTER = (
-    "areal_pacman.level1.dynamic_filter.accept_non_degenerate_reward_group"
+    "pacman_recipe.level1.dynamic_filter.accept_non_degenerate_reward_group"
 )
 
 
@@ -1092,7 +1094,7 @@ def main(args: list[str]) -> None:
     from areal.api.cli_args import load_expr_config
     from areal.dataset import get_custom_dataset
     from areal.utils.hf_utils import load_hf_tokenizer
-    from areal_pacman.synthetic.configs import PacmanAgentConfig
+    from pacman_recipe.synthetic.configs import PacmanAgentConfig
     from datasets import load_from_disk
 
     config, _ = load_expr_config(args, PacmanAgentConfig)

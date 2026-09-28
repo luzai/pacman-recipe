@@ -1,61 +1,9 @@
-"""Backward-compatible imports for the production Level-1 dataset."""
+"""Compatibility entrypoint for pacman_recipe.level1_dataset."""
+import importlib
+import runpy
+import sys
 
-from .level1.level1_dataset import (
-    DATASET_CONTRACT_VERSION,
-    ENV_API_VERSION,
-    ENV_BACKEND,
-    ENV_NAME,
-    LONG_HORIZON_MAX_STEPS,
-    PREFIX_AUDIT_CONTRACT_VERSION,
-    PRODUCTION_MAX_STEPS,
-    REPOSITORY_NAMES,
-    SHORT_HORIZON_MAX_STEPS,
-    STRESS_MAX_STEPS,
-    SUPPORTED_MAX_STEPS,
-    environment_metadata,
-    environment_revision,
-    generate_balanced_corridor_rows,
-    generate_episode_rows,
-    generate_single_step_rows,
-    make_episode_row,
-    oracle_state_prefixes,
-    oracle_state_records,
-    planner_audit_state_prefixes,
-    planner_audit_state_records,
-    planner_baseline_state_prefixes,
-    planner_baseline_state_records,
-    repository_revisions,
-    validate_episode_row,
-    write_hf_dataset,
-    write_jsonl,
-)
-
-__all__ = [
-    "DATASET_CONTRACT_VERSION",
-    "ENV_API_VERSION",
-    "ENV_BACKEND",
-    "ENV_NAME",
-    "LONG_HORIZON_MAX_STEPS",
-    "PREFIX_AUDIT_CONTRACT_VERSION",
-    "PRODUCTION_MAX_STEPS",
-    "REPOSITORY_NAMES",
-    "SHORT_HORIZON_MAX_STEPS",
-    "STRESS_MAX_STEPS",
-    "SUPPORTED_MAX_STEPS",
-    "environment_metadata",
-    "environment_revision",
-    "generate_balanced_corridor_rows",
-    "generate_episode_rows",
-    "generate_single_step_rows",
-    "make_episode_row",
-    "oracle_state_prefixes",
-    "oracle_state_records",
-    "planner_audit_state_prefixes",
-    "planner_audit_state_records",
-    "planner_baseline_state_prefixes",
-    "planner_baseline_state_records",
-    "repository_revisions",
-    "validate_episode_row",
-    "write_hf_dataset",
-    "write_jsonl",
-]
+if __name__ == "__main__":
+    runpy.run_module('pacman_recipe.level1_dataset', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.level1_dataset')

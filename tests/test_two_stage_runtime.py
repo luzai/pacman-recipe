@@ -9,13 +9,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from areal_pacman.level1.prompts import (
+from pacman_recipe.level1.prompts import (
     compact_edward_decision_prompt,
     live_state_instruction,
     prompt_contract_metadata,
     sent_prompt_sha256,
 )
-from areal_pacman.level1.rewards import RewardConfig
+from pacman_recipe.level1.rewards import RewardConfig
 
 
 def _context():
@@ -31,12 +31,27 @@ def _context():
     }
 
 
+def test_native_request_rejects_historical_image_accumulation():
+    from pacman_recipe.level1.workflow import PacmanNativeVisionWorkflow
+    from pacman_recipe.level1.prompts import build_image_messages, encode_png
+    import numpy as np
+
+    messages = build_image_messages(
+        encode_png(np.zeros((16, 16, 3), dtype=np.uint8)),
+        prompt_style="live_state_v3", state_context=_context(),
+    )
+    messages[1]["content"].append(copy.deepcopy(messages[1]["content"][-1]))
+    with pytest.raises(ValueError, match="exactly one current image"):
+        PacmanNativeVisionWorkflow._pil_and_chat_messages(messages)
+
+
 def test_stage_prompt_templates_identify_actual_distinct_protocols():
     c1 = prompt_contract_metadata("live_state_v3", edward_options=False)
     c2 = prompt_contract_metadata("live_state_v3", edward_options=True)
     assert c1["action_protocol"] == "direct-open-action-token-v1"
     assert c1["prompt_version"] == "live-state-direct-action-v3"
-    assert c2["action_protocol"] == c2["prompt_version"] == "edward-option-code-v1"
+    assert c2["action_protocol"] == "edward-option-code-v1"
+    assert c2["prompt_version"] == "edward-option-code-v2"
     assert c1["prompt_template_sha256"] != c2["prompt_template_sha256"]
     assert c1 == prompt_contract_metadata("live_state_v3", edward_options=False)
 
@@ -88,10 +103,10 @@ def test_reward_coefficients_must_remain_finite_even_with_infinite_clip(field, v
 
 
 def test_c1_runtime_does_not_construct_edward_and_emits_step_rewards(monkeypatch):
-    from maapacman.env import PygamePacmanEnv
-    from areal_pacman.level1.level1_dataset import make_episode_row
-    from areal_pacman.level1.workflow import ModelTurn, PacmanImageOnlyWorkflow
-    from areal_pacman.level1.trajectories import audit_trajectory
+    from pacman_env.env import PygamePacmanEnv
+    from pacman_recipe.level1.level1_dataset import make_episode_row
+    from pacman_recipe.level1.workflow import ModelTurn, PacmanImageOnlyWorkflow
+    from pacman_recipe.level1.trajectories import audit_trajectory
 
     class FourStepEnv(PygamePacmanEnv):
         def step(self, action):
@@ -119,7 +134,7 @@ def test_c1_runtime_does_not_construct_edward_and_emits_step_rewards(monkeypatch
     def forbidden():
         pytest.fail("C1 constructed EdwardPlanner")
 
-    monkeypatch.setattr("areal_pacman.level1.workflow.EdwardPlanner", forbidden)
+    monkeypatch.setattr("pacman_recipe.level1.episode.EdwardPlanner", forbidden)
     monkeypatch.setattr(
         "transformers.AutoTokenizer.from_pretrained",
         lambda _: SimpleNamespace(encode=lambda action, **_: ["UDLR".index(action)]),
@@ -172,8 +187,8 @@ def test_c1_runtime_does_not_construct_edward_and_emits_step_rewards(monkeypatch
 
 
 def test_runtime_rejects_mismatched_harness_row_before_environment(monkeypatch):
-    from areal_pacman.level1.level1_dataset import make_episode_row
-    from areal_pacman.level1.workflow import PacmanImageOnlyWorkflow
+    from pacman_recipe.level1.level1_dataset import make_episode_row
+    from pacman_recipe.level1.workflow import PacmanImageOnlyWorkflow
 
     monkeypatch.setattr(
         "transformers.AutoTokenizer.from_pretrained",
@@ -197,7 +212,7 @@ def test_native_runtime_assigns_step_or_whole_episode_task_signal(
 ):
     from contextvars import ContextVar
     import torch
-    from areal_pacman.level1.workflow import (
+    from pacman_recipe.level1.workflow import (
         PacmanImageOnlyWorkflow,
         PacmanNativeVisionWorkflow,
     )
@@ -251,7 +266,7 @@ def test_native_runtime_assigns_step_or_whole_episode_task_signal(
 
 @pytest.mark.parametrize("reward", [float("inf"), float("-inf"), float("nan")])
 def test_native_tensor_rejects_nonfinite_task_rewards(reward):
-    from areal_pacman.level1.workflow import PacmanNativeVisionWorkflow
+    from pacman_recipe.level1.workflow import PacmanNativeVisionWorkflow
 
     with pytest.raises(ValueError, match="training reward must be finite"):
         PacmanNativeVisionWorkflow._tensor_sample({}, None, reward, [])
@@ -259,7 +274,7 @@ def test_native_tensor_rejects_nonfinite_task_rewards(reward):
 
 @pytest.mark.parametrize("protocol", ["direct-open-action-token-v1", "edward-option-code-v1"])
 def test_formal_native_request_never_silently_truncates(protocol):
-    from areal_pacman.level1.workflow import PacmanNativeVisionWorkflow
+    from pacman_recipe.level1.workflow import PacmanNativeVisionWorkflow
 
     workflow = object.__new__(PacmanNativeVisionWorkflow)
     workflow.workflow_kwargs = {"action_protocol": protocol}

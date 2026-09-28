@@ -1,29 +1,9 @@
-"""Public exceptions raised by the MaaPacman environment."""
+"""Compatibility entrypoint for pacman_env.errors."""
+import importlib
+import runpy
+import sys
 
-
-class PacmanEnvError(RuntimeError):
-    """Base class for MaaPacman environment errors."""
-
-
-class InvalidConfigurationError(PacmanEnvError, ValueError):
-    """The requested environment configuration is unsupported or invalid."""
-
-
-class LevelLoadError(PacmanEnvError, ValueError):
-    """A level resource is absent, malformed, or fails its integrity check."""
-
-
-class InvalidActionError(PacmanEnvError, ValueError):
-    """An action is not one of the canonical environment action tokens."""
-
-
-class EpisodeNotStartedError(PacmanEnvError):
-    """An episode operation was attempted before reset()."""
-
-
-class EpisodeFinishedError(PacmanEnvError):
-    """step() was called after the current episode finished."""
-
-
-class EnvironmentClosedError(PacmanEnvError):
-    """An operation was attempted after close()."""
+if __name__ == "__main__":
+    runpy.run_module('pacman_env.errors', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_env.errors')

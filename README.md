@@ -1,12 +1,34 @@
-# AReaL Pacman RL 配方
+# Pacman Recipe
 
-本仓库提供 MaaPacman Level 1 的 headless 游戏环境和 AReaL 强化学习配方：
+项目目录和 GitHub 仓库统一命名为 `pacman-recipe`。公共配方包为
+`pacman_recipe`，环境包为 `pacman_env`；旧的 `areal_pacman` / `maapacman`
+imports 和模块入口作为兼容层保留。AReaL 训练路径保留；slime 的独立视觉
+adapter 与 CPU 验收已实现，真实 GPU 训练尚未验收。详见
+[slime 迁移](docs/slime-migration.md)。迁移和 prompt 版本说明见
+[名称迁移与 prompt 审计](docs/preparation-migration.md)。
 
-- `maapacman`：真实 pygame Level 1 环境；
-- `areal_pacman`：数据集、原生多模态 workflow、Reward v3、轨迹审计和评估工具；
+当前 C2 使用 `edward-option-code-v2` prompt，动作协议仍为
+`edward-option-code-v1`。旧 prompt 数据不能直接用于新训练：请重新准备数据并
+验证 manifest，不要修改历史文件的哈希来绕过检查。
+
+当前 primitive (`live_state_v3`) 与 options prompt 共用 `SHARED_GAME_RULES`：
+最新截图、结构化状态优先、幽灵与通行规则、过关条件及首次死亡即结束本局的规则。
+两套 prompt 均说明每次移动通常消耗 16 个游戏逻辑 ticks；判断可食用时间时应留余量，
+并考虑幽灵也会移动。
+Primitive 优先生存，再在安全的开放方向中收集普通豆子；仅保留走过的出口和上一步动作，
+在方向同样安全且有助于吃豆时参考历史，允许反向或重复出口。两套输出协议保持各自独立。
+这些文本变更会更新 prompt 指纹；新运行需要重新验证数据合约及真实 processor 的 token budget。
+
+下方固定 SHA 和 release 分支对应历史发布。新的名称与 prompt 改动只有在包含
+本次迁移的提交中才可用；复现旧发布时使用该提交自带的 README 和入口。
+
+本仓库提供 Pacman Level 1 的 headless 游戏环境和 AReaL 强化学习配方：
+
+- `pacman_env`：真实 pygame Level 1 环境；
+- `pacman_recipe`：数据集、原生多模态 workflow、Reward v3、轨迹审计和评估工具；
 - `configs/level1/` 与 `scripts/level1/`：训练配置和运行入口。
 
-固定 revision 的 AReaL fork 提供分布式调度、vLLM rollout、FSDP actor/reference engine 和 checkpoint 管理。环境已内置在本仓库，无需独立的 MaaPacman checkout。
+固定 revision 的 AReaL fork 提供分布式调度、vLLM rollout、FSDP actor/reference engine 和 checkpoint 管理。环境已内置在本仓库，无需独立的 Pacman checkout。
 
 C2 可显式启用[单步风险回退](docs/edward-risk-fallback.md)：正常 options 全部为空时，
 展示所有开放方向及风险提示，让模型选择一步后重新规划。默认仍保留原有行为。
@@ -43,11 +65,11 @@ actor/ref 的 `fsdp.memory_efficient_load=false`。旧 AReaL 发布快照不包�
 
 | 源码层                                                        | 作用                                       | 当前配方使用的版本                                                         |
 | ------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------- |
-| 本仓库                                                        | `areal_pacman` 配方与内置 `maapacman` 环境 | `release/maapacman-v0.1.0`；运行时记录实际 SHA                             |
+| 本仓库                                                        | `pacman_recipe` 配方与内置 `pacman_env` 环境 | `release/maapacman-v0.1.0`；运行时记录实际 SHA                             |
 | [luzai/AReaL](https://github.com/luzai/AReaL)                 | 训练、rollout、FSDP 和 checkpoint          | `release/pacman-v0.1.0` @ `9f93d1deb59c1c99cd7019afbd0e83bb40b62fc0`        |
 | [luzai/pacman-python](https://github.com/luzai/pacman-python) | 游戏规则、资源和 pygame renderer           | `release/maapacman-v0.1.0` 中的 `cbb97115e407abc86a44adc82a1b8f360b3e8da0` |
 
-复现时以固定 SHA 为准，不能仅依赖会继续更新的分支名。更新依赖 revision 后，需要同步运行 manifest 并重新验证。`areal_pacman.synthetic.*` 保留用于历史合成迷宫实验。
+复现时以固定 SHA 为准，不能仅依赖会继续更新的分支名。更新依赖 revision 后，需要同步运行 manifest 并重新验证。`pacman_recipe.synthetic.*` 保留用于历史合成迷宫实验。
 
 ## 获取固定源码
 
@@ -63,7 +85,7 @@ git clone --branch release/pacman-v0.1.0 --single-branch \
 git -C AReaL checkout 9f93d1deb59c1c99cd7019afbd0e83bb40b62fc0
 
 git clone --branch release/maapacman-v0.1.0 --single-branch \
-  https://github.com/luzai/areal-pacman.git
+  https://github.com/luzai/pacman-recipe.git
 
 git clone --branch release/maapacman-v0.1.0 --single-branch \
   https://github.com/luzai/pacman-python.git
@@ -75,7 +97,7 @@ git -C pacman-python checkout cbb97115e407abc86a44adc82a1b8f360b3e8da0
 ```text
 ${WORKSPACE_ROOT}/
   AReaL/
-  areal-pacman/
+  pacman-recipe/
   pacman-python/
 ```
 
@@ -83,7 +105,7 @@ ${WORKSPACE_ROOT}/
 
 ```bash
 git -C "$WORKSPACE_ROOT/AReaL" rev-parse HEAD
-git -C "$WORKSPACE_ROOT/areal-pacman" rev-parse HEAD
+git -C "$WORKSPACE_ROOT/pacman-recipe" rev-parse HEAD
 git -C "$WORKSPACE_ROOT/pacman-python" rev-parse HEAD
 ```
 
@@ -97,8 +119,8 @@ git -C "$WORKSPACE_ROOT/pacman-python" rev-parse HEAD
 
 ```bash
 export AREAL_ROOT="$WORKSPACE_ROOT/AReaL"
-export AREAL_PACMAN_ROOT="$WORKSPACE_ROOT/areal-pacman"
-export MAAPACMAN_PACMAN_PYTHON_ROOT="$WORKSPACE_ROOT/pacman-python"
+export PACMAN_RECIPE_ROOT="$WORKSPACE_ROOT/pacman-recipe"
+export PACMAN_PYTHON_ROOT="$WORKSPACE_ROOT/pacman-python"
 export ENV_ROOT=/path/to/conda/envs/maapacman-rl
 
 conda create --prefix "$ENV_ROOT" python=3.12.13 pip -y
@@ -107,18 +129,18 @@ export PYTHON="$ENV_ROOT/bin/python"
 
 # 按固定 AReaL checkout 的安装说明准备 vLLM/FSDP GPU 依赖。
 "$PYTHON" -m pip install -e "$AREAL_ROOT"
-"$PYTHON" -m pip install -e "${AREAL_PACMAN_ROOT}[dev,dataset,agent]"
+"$PYTHON" -m pip install -e "${PACMAN_RECIPE_ROOT}[dev,dataset,agent]"
 ```
 
-上面的 editable install 不替代 GPU 依赖安装。AReaL 兼容要求见[必需补丁说明](patches/README.md)。如果复用安装过独立 `maapacman` 的旧环境，先卸载旧 distribution，再安装本仓库。`pacman-python` 只作为固定、只读的源码 checkout 使用。
+上面的 editable install 不替代 GPU 依赖安装。AReaL 兼容要求见[必需补丁说明](patches/README.md)。如果复用安装过独立 `pacman_env` 的旧环境，先卸载旧 distribution，再安装本仓库。`pacman-python` 只作为固定、只读的源码 checkout 使用。
 
 ## 环境检查
 
 以下命令检查导入和真实 headless 游戏环境，不启动 GPU 训练：
 
 ```bash
-cd "$AREAL_PACMAN_ROOT"
-export PYTHONPATH="$AREAL_ROOT:$AREAL_PACMAN_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+cd "$PACMAN_RECIPE_ROOT"
+export PYTHONPATH="$AREAL_ROOT:$PACMAN_RECIPE_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export SDL_VIDEODRIVER=dummy
 export SDL_AUDIODRIVER=dummy
 
@@ -126,16 +148,16 @@ export SDL_AUDIODRIVER=dummy
 from pathlib import Path
 
 import areal
-import areal_pacman
-import maapacman
-from maapacman.env import PygamePacmanEnv
+import pacman_recipe
+import pacman_env
+from pacman_env.env import PygamePacmanEnv
 
-recipe_package = Path(areal_pacman.__file__).resolve().parent
-environment_package = Path(maapacman.__file__).resolve().parent
+recipe_package = Path(pacman_recipe.__file__).resolve().parent
+environment_package = Path(pacman_env.__file__).resolve().parent
 assert recipe_package.parent == environment_package.parent
 print("areal:", Path(areal.__file__).resolve())
-print("areal_pacman:", recipe_package)
-print("maapacman:", environment_package)
+print("pacman_recipe:", recipe_package)
+print("pacman_env:", environment_package)
 
 with PygamePacmanEnv() as env:
     image, info = env.reset(seed=0)
@@ -164,7 +186,7 @@ CUDA_VISIBLE_DEVICES='' "$PYTHON" -m pytest -q
 | 每局底层 `env.step` 上限 | 512 | 512 |
 | 动作 / harness | 单 token `U/D/L/R`，只允许当前可通行方向；不构造或调用 Edward | 单 token advertised option code，经 Edward 映射并执行 `C*/A*/E*` 候选 |
 | `action_protocol` | `direct-open-action-token-v1` | `edward-option-code-v1` |
-| `prompt_version` | `live-state-direct-action-v3` | `edward-option-code-v1` |
+| `prompt_version` | `live-state-direct-action-v3` | `edward-option-code-v2` |
 | `edward_options` | `false` | `true` |
 | `action_token_choice` / `open_action_mask` | `true` / `true` | `false` / `false`，使用有效 option 候选 mask |
 | reward objective | `step_local_raw_v1` | `episode_return_group_v1` |
@@ -184,14 +206,14 @@ C1 聚焦无幽灵导航与吃豆，C2 学习正常幽灵下的 Edward option �
 
 C1 是无 critic、逐步奖励的 PPO-style 更新：每次方向动作使用自己的 shaped reward，不做 group/advantage normalization，不广播整局回报，不跨游戏步做 GAE；保留原有 loss reduction。`.inf` 只是不截断有限的单步任务奖励，NaN/Inf reward 仍拒绝，JSON metadata 使用字符串 `"inf"`。C2 在同一初始状态的 12 局中先做整局回报归一化，再裁剪到 ±20；每局所有策略决策共享该局任务信号，整局 loss 等权，`option_return` 仅记录审计、不重复累加。两者保留 `ppo_n_minibatches=1`、KL=0.01 和 reference model（初始化跟随 actor），`critic/teacher/adv_norm=null`。
 
-Reward v3：普通豆/能量豆各 +1、幽灵 +5、水果 0、通关 +50、死亡 -100、每底层步 -0.05、撞墙 -0.5，另加 alpha=0.1 的 nearest-pellet shaping。`use_base_reward=false`；C2 safety refusal 整局仅扣一次 -100，开局尚无模型决策即拒绝时不造训练样本，选择 AVOID 本身不扣分。保持既有格式错误 fail-closed 整局目标 -1。完整系数和审计规则以 [rewards.py](areal_pacman/level1/rewards.py) 与两份 YAML 为准。
+Reward v3：普通豆/能量豆各 +1、幽灵 +5、水果 0、通关 +50、死亡 -100、每底层步 -0.05、撞墙 -0.5，另加 alpha=0.1 的 nearest-pellet shaping。`use_base_reward=false`；C2 safety refusal 整局仅扣一次 -100，开局尚无模型决策即拒绝时不造训练样本，选择 AVOID 本身不扣分。保持既有格式错误 fail-closed 整局目标 -1。完整系数和审计规则以 [rewards.py](pacman_recipe/level1/rewards.py) 与两份 YAML 为准。
 
 ## 启动训练
 
 使用上面的路径与已激活环境，在仓库根目录设置一次：
 
 ```bash
-cd "$AREAL_PACMAN_ROOT"
+cd "$PACMAN_RECIPE_ROOT"
 export OWNER_ROOT=/path/to/writable/owner-root
 export ENV_ROOT="$CONDA_PREFIX"
 export PYTHON="$ENV_ROOT/bin/python"
@@ -286,7 +308,7 @@ bash scripts/level1/train/run_level1_training.sh
 
 从 base 复现训练可以只交付固定源码、配置、模型 revision 和运行记录；若同事不重训而直接运行最终 agent，则必须另交付**完整 C2 推理 checkpoint + tokenizer/processor + 精确 Edward harness/config**。建议同时提供实际用于 C2 初始化的 C1 checkpoint；optimizer/scheduler 恢复状态是另一类制品，不属于推理必需文件。
 
-完整 C2 权重计划作为独立大文件制品交付，Git 保留模型说明、manifest、逐文件校验和及下载入口。交付位置/访问范围、实测推理后端与硬件仍待确定；不要求读取其他用户目录，也不依赖 MaaPacman 独立仓库。必须记录 C2 run/update、C1 父模型 hash、base revision、三仓身份和导出参数，且无指向训练机的外部 symlink。
+完整 C2 权重计划作为独立大文件制品交付，Git 保留模型说明、manifest、逐文件校验和及下载入口。交付位置/访问范围、实测推理后端与硬件仍待确定；不要求读取其他用户目录，也不依赖 Pacman 独立仓库。必须记录 C2 run/update、C1 父模型 hash、base revision、三仓身份和导出参数，且无指向训练机的外部 symlink。
 
 发布 checkpoint 不自动等于最后一步：按预先声明的规则，仅用 validation 108–111 在**实际留存的已训练候选**中选模并保留 last，报告候选 update 列表与规则。当前 `keep_last=2`、`keep_best_metric` 使用训练 reward，且 AReaL 先保存后评估；每 update 保存不代表留存全部 100 份，也不能宣称选出全程 validation 最优。默认最后一步在最近两份中；若需保护全程 validation 最优，仍须另实现验证后保护或规划全量保留，不能默增磁盘预算。之后固定独立测试集；目前建议 seeds 112–131 × 3 个固定生成 RNG seeds，共 60 局，具体规模尚待确认，不能用测试集反复调参。
 

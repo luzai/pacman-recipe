@@ -1,7 +1,7 @@
 [project]
-name = "areal-pacman"
+name = "pacman-recipe"
 version = "0.1.0"
-description = "AReaL image-only reinforcement-learning recipe for MaaPacman"
+description = "Pacman reinforcement-learning recipes and headless environment"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",
@@ -19,11 +19,11 @@ h100-offload = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["areal_pacman*", "maapacman*"]
+include = ["pacman_recipe*", "pacman_env*", "slime_pacman*", "areal_pacman*", "maapacman*"]
 
 [tool.setuptools.package-data]
-"areal_pacman.synthetic" = ["maze_suites/*.json"]
-"maapacman.env" = ["*.md", "levels/*.txt", "levels/*.json", "levels/*.md"]
+"pacman_recipe.synthetic" = ["maze_suites/*.json"]
+"pacman_env.env" = ["*.md", "levels/*.txt", "levels/*.json", "levels/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

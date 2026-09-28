@@ -7,21 +7,19 @@ import json
 from pathlib import Path
 
 import numpy as np
-from maapacman.planner import PlannerCandidate
+from pacman_env.planner import PlannerCandidate
 
-from areal_pacman.level1.prompts import (
+from pacman_recipe.level1.prompts import (
     build_image_messages,
     edward_system_prompt,
     encode_png,
 )
-from areal_pacman.level1.token_constraints import (
+from pacman_recipe.level1.token_constraints import (
     OPTION_IDS,
     ObjectiveTokenConstraint,
 )
-from areal_pacman.level1.workflow import (
-    PacmanNativeVisionWorkflow,
-    _compact_edward_decision_prompt,
-)
+from pacman_recipe.level1.image_transport import pil_and_chat_messages
+from pacman_recipe.level1.prompts import render_edward_decision_prompt
 
 
 OBSERVATION_SHAPE = (400, 336, 3)
@@ -72,14 +70,15 @@ def worst_case_messages(
         ],
         "edible_ticks": 360,
         "last_action": "R",
+        "episode_life_mode": "original_three_lives",
     }
     if fallback_mode != "refuse":
         state_context["edward_fallback_mode"] = fallback_mode
     constraint = ObjectiveTokenConstraint.build(
         tokenizer, (candidate.option_id for candidate in candidates)
     )
-    user_prompt = _compact_edward_decision_prompt(
-        state_context, candidates, constraint
+    user_prompt = render_edward_decision_prompt(
+        state_context, candidates, constraint, fallback_mode=fallback_mode
     )
     image = np.zeros(OBSERVATION_SHAPE, dtype=np.uint8)
     messages = build_image_messages(
@@ -99,7 +98,7 @@ def measure(
     messages, user_prompt = worst_case_messages(
         tokenizer, fallback_mode=fallback_mode, risk_fallback=risk_fallback
     )
-    image, chat_messages = PacmanNativeVisionWorkflow._pil_and_chat_messages(
+    image, chat_messages = pil_and_chat_messages(
         messages
     )
     text = processor.apply_chat_template(

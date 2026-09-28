@@ -6,8 +6,8 @@ import shutil
 
 import pytest
 
-from maapacman.env import InvalidConfigurationError, PygameWorkerError
-from maapacman.env._saved_state import checksum
+from pacman_env.env import InvalidConfigurationError, PygameWorkerError
+from pacman_env.env._saved_state import checksum
 from .test_saved_state import ROOT, make_env, transition_record
 
 
@@ -47,7 +47,7 @@ def test_changed_font_resource_is_rejected(tmp_path):
     # Work on a private copy; never alter the configured simulator resources.
     local_root = tmp_path / "pacman-python"
     shutil.copytree(ROOT / "pacman", local_root / "pacman")
-    from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
+    from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
 
     with PygamePacmanEnv(PygamePacmanEnvConfig(pacman_python_root=local_root)) as env:
         env.reset(seed=0)

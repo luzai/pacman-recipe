@@ -83,6 +83,7 @@ if (( SMOKE_UPDATES_SET )); then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "${REPO_ROOT}/scripts/pacman_paths.sh"
 WORKSPACE_ROOT="$(cd "${REPO_ROOT}/.." && pwd)"
 OWNER_ROOT="${OWNER_ROOT:-${HOME:?HOME must be set}}"
 ENV_ROOT="${ENV_ROOT:-${OWNER_ROOT}/miniconda/envs/maapacman-rl}"
@@ -201,23 +202,23 @@ export PYTHONPATH="${AREAL_ROOT}:${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 import sys
 from pathlib import Path
 
-import areal_pacman
-import maapacman
+import pacman_recipe
+import pacman_env
 
 repo_root = Path(sys.argv[1]).resolve()
-recipe_package = Path(areal_pacman.__file__).resolve().parent
-environment_package = Path(maapacman.__file__).resolve().parent
+recipe_package = Path(pacman_recipe.__file__).resolve().parent
+environment_package = Path(pacman_env.__file__).resolve().parent
 if recipe_package.parent != repo_root:
     raise SystemExit(
-        f"areal_pacman import escaped active checkout: {recipe_package}"
+        f"pacman_recipe import escaped active checkout: {recipe_package}"
     )
 if environment_package.parent != repo_root:
     raise SystemExit(
-        "maapacman import escaped active bundled checkout; uninstall the old "
+        "pacman_env import escaped active bundled checkout; uninstall the old "
         f"standalone maapacman distribution: {environment_package}"
     )
-print(f"areal_pacman_import={recipe_package}")
-print(f"maapacman_import={environment_package}")
+print(f"pacman_recipe_import={recipe_package}")
+print(f"pacman_env_import={environment_package}")
 PY
 AREAL_IMPORT_PATH="$(
   "${PYTHON}" -c 'import pathlib, areal; print(pathlib.Path(areal.__file__).resolve())'
@@ -342,7 +343,7 @@ if "edward_options: true" in config_text:
         raise SystemExit("Edward options must disable atomic action choices")
     if "open_action_mask: false" not in config_text:
         raise SystemExit("Edward options must disable the legacy action mask")
-print("areal_pacman_action_logprobs_patch=ok")
+print("pacman_recipe_action_logprobs_patch=ok")
 PY
 fi
 if grep -Eq '^(open_action_mask|edward_options|action_token_choice):[[:space:]]*true' "${CONFIG}"; then

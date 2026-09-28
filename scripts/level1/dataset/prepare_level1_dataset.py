@@ -9,7 +9,7 @@ from dataclasses import asdict
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator, Mapping
 
-from areal_pacman.level1.recipe import (
+from pacman_recipe.level1.recipe import (
     DIRECT_ACTION_PROTOCOL,
     EDWARD_OPTION_PROTOCOL,
     load_recipe_document,
@@ -17,7 +17,7 @@ from areal_pacman.level1.recipe import (
     recipe_contract_metadata,
 )
 
-from areal_pacman.level1.level1_dataset import (
+from pacman_recipe.level1.level1_dataset import (
     DATASET_CONTRACT_VERSION,
     audit_anchor_semantics,
     environment_metadata,
@@ -101,11 +101,11 @@ def _split_generator_provenance() -> dict[str, Any]:
             / "level1"
             / "dataset"
             / "prepare_level1_v3_audits.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "level1_dataset.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "recipe.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "prompts.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "rewards.py",
-            REPO_ROOT / "areal_pacman" / "level1" / "trajectories.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "level1_dataset.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "recipe.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "prompts.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "rewards.py",
+            REPO_ROOT / "pacman_recipe" / "level1" / "trajectories.py",
         ]
     )
 
@@ -369,7 +369,7 @@ def validate_prepared_dataset_manifest(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Prepare immutable API-v3 MaaPacman level-1 episode rows.")
+    parser = argparse.ArgumentParser(description="Prepare immutable API-v3 Pacman level-1 episode rows.")
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/datasets/level1_dataset"))
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--train-episodes", type=int)
@@ -391,18 +391,20 @@ def _temporary_pacman_python_root(
         yield
         return
 
-    variable = "MAAPACMAN_PACMAN_ROOT"
-    previous = os.environ.get(variable)
-    os.environ[variable] = str(Path(pacman_python_root).resolve())
+    variables = ("PACMAN_PYTHON_ROOT", "MAAPACMAN_PACMAN_ROOT", "MAAPACMAN_PACMAN_PYTHON_ROOT")
+    previous = {variable: os.environ.get(variable) for variable in variables}
+    for variable in variables:
+        os.environ[variable] = str(Path(pacman_python_root).resolve())
     repository_revisions.cache_clear()
     environment_metadata.cache_clear()
     try:
         yield
     finally:
-        if previous is None:
-            os.environ.pop(variable, None)
-        else:
-            os.environ[variable] = previous
+        for variable, value in previous.items():
+            if value is None:
+                os.environ.pop(variable, None)
+            else:
+                os.environ[variable] = value
         repository_revisions.cache_clear()
         environment_metadata.cache_clear()
 

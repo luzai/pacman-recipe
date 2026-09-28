@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 import unittest
 
-from maapacman.env import PygamePacmanEnv, PygameWorkerError
+from pacman_env.env import PygamePacmanEnv, PygameWorkerError
 
 
 class PygameTransitionContractTests(unittest.TestCase):

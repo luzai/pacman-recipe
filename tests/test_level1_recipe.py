@@ -15,21 +15,21 @@ from unittest.mock import patch
 import numpy as np
 import torch
 from PIL import Image
-from maapacman.env import (
+from pacman_env.env import (
     Action,
     Position,
     PygamePacmanEnv,
     load_bundled_level,
     route_to_nearest,
 )
-from maapacman.planner import (
+from pacman_env.planner import (
     EdwardPlanner,
     EdwardSafetyRefusal,
     PlannerCandidate,
 )
 
-from areal_pacman.actions import ActionParseError, parse_action
-from areal_pacman.level1_dataset import (
+from pacman_recipe.actions import ActionParseError, parse_action
+from pacman_recipe.level1_dataset import (
     ENV_BACKEND,
     LONG_HORIZON_MAX_STEPS,
     PRODUCTION_MAX_STEPS,
@@ -45,8 +45,8 @@ from areal_pacman.level1_dataset import (
     validate_episode_row,
     write_jsonl,
 )
-from areal_pacman.prompts import (
-    EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT,
+from pacman_recipe.prompts import (
+    EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT,
     LIVE_STATE_V3_SYSTEM_PROMPT,
     LIVE_STATIC_V2_SYSTEM_PROMPT,
     LIVE_STATIC_V2_USER_INSTRUCTION,
@@ -58,17 +58,17 @@ from areal_pacman.prompts import (
     image_count,
     png_sha256,
 )
-from areal_pacman.rewards import RewardConfig, audit_reward, shape_reward
-from areal_pacman.trajectories import audit_trajectory, summarize_episodes
-from areal_pacman.level1.token_constraints import (
+from pacman_recipe.rewards import RewardConfig, audit_reward, shape_reward
+from pacman_recipe.trajectories import audit_trajectory, summarize_episodes
+from pacman_recipe.level1.token_constraints import (
     ObjectiveParseError,
     ObjectiveTokenConstraint,
 )
-from areal_pacman.level1.workflow import (
+from pacman_recipe.level1.workflow import (
     _nearest_reachable_distance_with_diagnostics,
     _normal_pellet_event_position,
 )
-from areal_pacman.workflow import (
+from pacman_recipe.workflow import (
     ModelTurn,
     PacmanImageOnlyWorkflow,
     PacmanNativeVisionWorkflow,
@@ -314,7 +314,7 @@ class DatasetContractTests(unittest.TestCase):
                 validate_episode_row(broken)
 
         broken = copy.deepcopy(row)
-        broken["source_revisions"]["MaaPacman"] = {
+        broken["source_revisions"]["Pacman"] = {
             "commit": "0" * 40,
             "dirty": False,
         }
@@ -437,10 +437,8 @@ class PromptAndActionTests(unittest.TestCase):
             "OPEN dirs here: L, R",
             "BLOCKED dirs here: U, D",
             "directions already taken before: L",
-            "Prefer a DIFFERENT OPEN dir than cell history: [R]",
-            "Do NOT reverse the last move (R)",
-            "Choose ONE ACTION from [R]",
-            "Only output one ACTION letter: <one of U/D/L/R>",
+            "Last move: R.",
+            "Choose ONE ACTION from [L, R]",
         ):
             self.assertIn(expected, text)
         self.assertEqual(image_count(messages), 1)
@@ -495,13 +493,13 @@ class RewardAndTrajectoryTests(unittest.TestCase):
         targets = {Position(16, 9), Position(16, 11)}
         with (
             patch(
-                "areal_pacman.level1.workflow.nearest_reachable_distance",
+                "pacman_recipe.level1.episode.nearest_reachable_distance",
                 side_effect=ValueError(
                     "no target is reachable from the requested position"
                 ),
             ),
             self.assertLogs(
-                "areal_pacman.level1.workflow",
+                "pacman_recipe.level1.episode",
                 level="ERROR",
             ) as captured,
             self.assertRaisesRegex(
@@ -531,13 +529,13 @@ class RewardAndTrajectoryTests(unittest.TestCase):
         targets = {Position(16, 9), Position(16, 11)}
         with (
             patch(
-                "areal_pacman.level1.workflow.nearest_reachable_distance",
+                "pacman_recipe.level1.episode.nearest_reachable_distance",
                 side_effect=ValueError(
                     "no target is reachable from the requested position"
                 ),
             ),
             self.assertLogs(
-                "areal_pacman.level1.workflow",
+                "pacman_recipe.level1.episode",
                 level="WARNING",
             ) as captured,
         ):
@@ -1424,7 +1422,7 @@ class WorkflowContractTests(unittest.TestCase):
                 "areal.utils.image": fake_areal_image,
             },
         ), self.assertLogs(
-            "areal_pacman.level1.workflow", level="WARNING"
+            "pacman_recipe.level1.episode", level="WARNING"
         ) as logs:
             turn = asyncio.run(
                 workflow._call_model(
@@ -1495,7 +1493,7 @@ class WorkflowContractTests(unittest.TestCase):
                 "areal.utils.image": fake_areal_image,
             },
         ), self.assertLogs(
-            "areal_pacman.level1.workflow", level="WARNING"
+            "pacman_recipe.level1.episode", level="WARNING"
         ), self.assertRaises(ObjectiveParseError):
             asyncio.run(
                 workflow._call_model(
@@ -1503,7 +1501,7 @@ class WorkflowContractTests(unittest.TestCase):
                 )
             )
 
-        from areal_pacman.level1.workflow import _MASK_LEAK_RETRY_ATTEMPTS
+        from pacman_recipe.level1.workflow import _MASK_LEAK_RETRY_ATTEMPTS
 
         self.assertEqual(engine.calls, _MASK_LEAK_RETRY_ATTEMPTS)
 
@@ -1763,7 +1761,7 @@ class WorkflowContractTests(unittest.TestCase):
     def test_workflow_skips_bfs_above_late_shaping_threshold(self) -> None:
         workflow = PacmanImageOnlyWorkflow(env_factory=OneStepEnv)
         with patch(
-            "areal_pacman.level1.workflow."
+            "pacman_recipe.level1.episode."
             "_nearest_reachable_distance_with_diagnostics"
         ) as distance:
             asyncio.run(
@@ -1946,7 +1944,7 @@ class WorkflowContractTests(unittest.TestCase):
                 return_value=FakeObjectiveTokenizer(),
             ),
             patch(
-                "areal_pacman.level1.workflow.EdwardPlanner",
+                "pacman_recipe.level1.episode.EdwardPlanner",
                 FakePlanner,
             ),
         ):
@@ -1980,15 +1978,15 @@ class WorkflowContractTests(unittest.TestCase):
         )
         self.assertEqual(payload["decoding"]["max_completion_tokens"], 1)
         self.assertEqual(
-            captured["system_prompt"], EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT
+            captured["system_prompt"], EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT
         )
         self.assertEqual(
-            payload["system_prompt"], EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT
+            payload["system_prompt"], EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT
         )
         self.assertIn("uppercase option code", payload["system_prompt"])
         self.assertIn("not a movement action", payload["system_prompt"])
         for expected in (
-            "exact MaaPacman simulator",
+            "this Pacman simulator",
             "trust the structured state",
             "level/tunnel door",
             "Eyes and gone ghosts are nonlethal",
@@ -2012,11 +2010,11 @@ class WorkflowContractTests(unittest.TestCase):
         for expected in (
             "p=Pac-Man [row,column]",
             "pellets=normal+power pellets remaining",
-            "maps code to id. Use only the candidates shown for this turn",
+            "Use only the candidates shown for this turn",
             "distance=route steps, commit=max executed moves",
             "larger safety/exits are better",
             "entity=ELIMINATE ghost id",
-            "Structured state overrides the image",
+            "life_mode=death rule",
             "nothing else",
         ):
             self.assertIn(expected, first["model_user_instruction"])
@@ -2108,7 +2106,7 @@ class WorkflowContractTests(unittest.TestCase):
                 return_value=FakeObjectiveTokenizer(),
             ),
             patch(
-                "areal_pacman.level1.workflow.EdwardPlanner",
+                "pacman_recipe.level1.episode.EdwardPlanner",
                 RefusingPlanner,
             ),
         ):
@@ -2184,7 +2182,7 @@ class WorkflowContractTests(unittest.TestCase):
                 return_value=FakeObjectiveTokenizer(),
             ),
             patch(
-                "areal_pacman.level1.workflow.EdwardPlanner",
+                "pacman_recipe.level1.episode.EdwardPlanner",
                 RefusingPlanner,
             ),
         ):
@@ -2220,7 +2218,7 @@ class WorkflowContractTests(unittest.TestCase):
                 return_value=FakeObjectiveTokenizer(),
             ),
             patch(
-                "areal_pacman.level1.workflow.EdwardPlanner",
+                "pacman_recipe.level1.episode.EdwardPlanner",
                 BrokenPlanner,
             ),
         ):
@@ -2438,19 +2436,19 @@ class WorkflowContractTests(unittest.TestCase):
     def test_production_workflow_does_not_import_private_environment(self) -> None:
         source = (
             Path(__file__).parents[1]
-            / "areal_pacman"
+            / "pacman_recipe"
             / "level1"
             / "workflow.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("from maapacman.env import", source)
+        self.assertIn("from pacman_env.env import", source)
         self.assertNotIn("from .env import", source)
-        self.assertNotIn("from areal_pacman.env import", source)
+        self.assertNotIn("from pacman_recipe.env import", source)
 
     def test_workflow_import_shim_preserves_public_classes(self) -> None:
-        from areal_pacman.level1.workflow import (
+        from pacman_recipe.level1.workflow import (
             PacmanImageOnlyWorkflow as CanonicalImageOnlyWorkflow,
         )
-        from areal_pacman.level1.workflow import (
+        from pacman_recipe.level1.workflow import (
             PacmanNativeVisionWorkflow as CanonicalNativeVisionWorkflow,
         )
 
@@ -2531,7 +2529,7 @@ class TrainerGenerationContractTests(unittest.TestCase):
         self.assertIsNone(_build_group_reward_degeneracy_filter(config))
 
     def test_degenerate_reward_group_is_rejected(self) -> None:
-        from areal_pacman.level1.dynamic_filter import (
+        from pacman_recipe.level1.dynamic_filter import (
             accept_non_degenerate_reward_group,
         )
 
@@ -2742,7 +2740,7 @@ class TrainerGenerationContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("_apply_pacman_action_mask", patch)
         self.assertIn('logprobs_mode: str = "raw_logprobs"', patch)
-        self.assertIn("areal_pacman_action_logprobs_patch=ok", launcher)
+        self.assertIn("pacman_recipe_action_logprobs_patch=ok", launcher)
 
     def test_fsdp_cpu_offload_patch_is_reproducible_and_preflighted(self) -> None:
         root = Path(__file__).parents[1]

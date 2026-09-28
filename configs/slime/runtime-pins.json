@@ -1,0 +1,21 @@
+{
+  "schema": "pacman-slime-runtime-pins-v1",
+  "status": "source_pins_gpu_compatibility_pending",
+  "slime": "89bfada990a00663846e0ac804de1454685ceed3",
+  "sglang_image": "slimerl/sglang:v0.5.15.post1-cu129",
+  "sglang": "0.5.15.post1",
+  "megatron": "1dcf0dafa884ad52ffb243625717a3471643e087",
+  "transformer_engine_cuda12": "2.16.1",
+  "transformer_engine_cuda13_source_revision": "c9877beb87ad7e711e1869dd0b5062167ede447a",
+  "torch_memory_saver": "8d30c59ca12a68d9deccbc9c6599076a1218cbc5",
+  "recipe_patch": "patches/slime-pacman-metadata.patch",
+  "required_runtime_evidence": [
+    "resolved_container_digest",
+    "installed_package_versions_and_source_revisions",
+    "cuda_and_h100_kernel_compatibility",
+    "model_and_processor_file_hashes",
+    "frozen_hf_megatron_sglang_probability_comparison",
+    "cache_isolation_serial_concurrent_and_weight_update",
+    "one_update_and_resume_two_update_smoke"
+  ]
+}

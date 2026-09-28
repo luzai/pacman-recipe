@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from areal_pacman.baselines import GreedyPelletAgent
-from areal_pacman.env import PacmanEnv, layout_by_name
-from areal_pacman.evaluate import run_episode
-from areal_pacman.maze_suite import SPLIT_SIZES, maze_records, suite_summary
-from areal_pacman.vision import env_png_bytes, image_sha256, render_env_image
+from pacman_recipe.baselines import GreedyPelletAgent
+from pacman_recipe.env import PacmanEnv, layout_by_name
+from pacman_recipe.evaluate import run_episode
+from pacman_recipe.maze_suite import SPLIT_SIZES, maze_records, suite_summary
+from pacman_recipe.vision import env_png_bytes, image_sha256, render_env_image
 
 
 def test_reset_and_observation_contains_actions():
@@ -71,7 +71,7 @@ def test_multi_maze_suite_is_declared_as_wheel_package_data():
     pyproject = (Path(__file__).parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    assert '"areal_pacman.synthetic" = ["maze_suites/*.json"]' in pyproject
+    assert '"pacman_recipe.synthetic" = ["maze_suites/*.json"]' in pyproject
 
 
 def test_every_multi_maze_oracle_solution_replays_to_win():

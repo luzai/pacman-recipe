@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from areal_pacman.level1 import backplay_runner as runner
+from pacman_recipe.level1 import backplay_runner as runner
 
 
 @pytest.fixture

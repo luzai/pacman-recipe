@@ -2,6 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "${REPO_ROOT}/scripts/pacman_paths.sh"
 SOURCE_RUN="${SOURCE_RUN:?SOURCE_RUN is required}"
 BASE_MODEL="${BASE_MODEL:?BASE_MODEL is required}"
 ENV_ROOT="${ENV_ROOT:-${CONDA_PREFIX:-${HOME}/.conda/envs/maapacman-rl}}"

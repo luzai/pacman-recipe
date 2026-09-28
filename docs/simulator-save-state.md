@@ -7,7 +7,7 @@ continuation.
 ```python
 import json
 from pathlib import Path
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
 
 config = PygamePacmanEnvConfig(
     pacman_python_root="/absolute/path/to/pacman-python",

@@ -1,4 +1,4 @@
-"""Local startup patches for AReaL MaaPacman workers."""
+"""Local startup patches for AReaL Pacman workers."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _patch_tms_preload_resolution() -> None:
 def _disable_cudnn_sdpa() -> None:
     """Avoid cuDNN frontend plan failures in AReaL reference log-probs."""
     enabled = (
-        os.environ.get("MAAPACMAN_DISABLE_CUDNN_SDPA") == "1"
+        os.environ.get("PACMAN_DISABLE_CUDNN_SDPA", os.environ.get("MAAPACMAN_DISABLE_CUDNN_SDPA")) == "1"
         or os.environ.get("AREAL_DISABLE_CUDNN_SDPA") == "1"
     )
     if not enabled:

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from train_areal import _validate_reward_objective_contract
-from areal_pacman.synthetic.configs import PacmanAgentConfig
+from pacman_recipe.synthetic.configs import PacmanAgentConfig
 
 
 def _config(
@@ -23,7 +23,7 @@ def _config(
 ):
     return SimpleNamespace(
         reward_objective_contract=contract,
-        workflow="areal_pacman.workflow.PacmanNativeVisionWorkflow",
+        workflow="pacman_recipe.workflow.PacmanNativeVisionWorkflow",
         actor=SimpleNamespace(
             reward_norm=reward_norm,
             adv_norm=adv_norm,

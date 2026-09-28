@@ -14,9 +14,10 @@ from pathlib import Path
 import time
 from typing import Any
 
-from areal_pacman.level1.level1_dataset import make_episode_row
-from areal_pacman.level1.recipe import load_recipe_document, recipe_contract_metadata
-from areal_pacman.level1.trajectories import summarize_episodes
+from pacman_env.paths import pacman_python_root
+from pacman_recipe.level1.level1_dataset import make_episode_row
+from pacman_recipe.level1.recipe import load_recipe_document, recipe_contract_metadata
+from pacman_recipe.level1.trajectories import summarize_episodes
 
 DEFAULT_CONFIG = (
     Path(__file__).resolve().parents[3] / "configs/level1/train/curriculum2.yaml"
@@ -124,7 +125,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument(
         "--pacman-python-root",
         type=Path,
-        default=os.getenv("MAAPACMAN_PACMAN_PYTHON_ROOT"),
+        default=pacman_python_root(),
     )
     parser.add_argument("--trajectory-dir", type=Path)
     parser.add_argument("--output", type=Path, required=True)
@@ -241,7 +242,7 @@ def is_verified_win(episode):
 
 def workflow_class():
     # Inspecting a recipe does not need AReaL's Linux-only runtime imports.
-    from areal_pacman.level1.workflow import PacmanImageOnlyWorkflow
+    from pacman_recipe.level1.workflow import PacmanImageOnlyWorkflow
 
     return PacmanImageOnlyWorkflow
 
@@ -256,7 +257,8 @@ async def evaluate(args):
         )
     raw, kwargs = evaluation_settings(args)
     if args.pacman_python_root is not None:
-        os.environ["MAAPACMAN_PACMAN_PYTHON_ROOT"] = str(args.pacman_python_root)
+        for variable in ("PACMAN_PYTHON_ROOT", "MAAPACMAN_PACMAN_ROOT", "MAAPACMAN_PACMAN_PYTHON_ROOT"):
+            os.environ[variable] = str(args.pacman_python_root.resolve())
     seeds = list(range(args.seed, args.seed + args.episodes))
     data = kwargs["recipe_contract"]["data"]
     if args.purpose == "heldout" and set(seeds) & set(

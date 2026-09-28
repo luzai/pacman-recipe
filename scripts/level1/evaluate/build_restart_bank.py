@@ -7,8 +7,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from areal_pacman.level1.backplay import build_restart_bank
-from maapacman.env import PygamePacmanEnvConfig
+from pacman_recipe.level1.backplay import build_restart_bank
+from pacman_env.env import PygamePacmanEnvConfig
 
 
 def main():

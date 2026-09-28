@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from omegaconf import OmegaConf
 
-from areal_pacman.level1.recipe import (
+from pacman_recipe.level1.recipe import (
     json_safe_value,
     load_recipe_document,
     load_planner_audit_settings,

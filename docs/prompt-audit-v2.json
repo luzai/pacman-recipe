@@ -1,0 +1,65 @@
+{
+  "description": "Conservative synthetic ten-candidate prompt; one current 400x336 RGB image. No model inference.",
+  "tokenizer_model": "Qwen/Qwen3.5-9B",
+  "hf_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
+  "transformers_version": "5.16.1",
+  "prompt_contract": {
+    "action_protocol": "edward-option-code-v1",
+    "prompt_version": "edward-option-code-v2",
+    "prompt_template_sha256": "5e6087e5cad407af6d971466605be594952eeaa8ac0606eaa93dd6b5b2d1e95e",
+    "system_prompt_sha256": "8a56c52d28050633f5553603ba598161c2d3929926c97d9faf391df14c0ee872",
+    "user_prompt_template_sha256": "0df1161390b5f7f95f9fd1a2337c43e06f96109b6d4a2fc1ea348a222a4d3d4a"
+  },
+  "system": "You are the tactical objective policy for this Pacman simulator. Use one live screenshot and authoritative structured state; if they conflict, trust the structured state for coordinates and ghost status. Do not import rules from other Pac-Man games. Colors can vary; use shape and maze context. Pac-Man cannot cross walls or the ghost door, but can use a level/tunnel door; ghosts cannot use that tunnel. Normal ghosts are lethal. Vulnerable deep-blue or flashing ghosts are edible only when edible_ticks allows a safe interception. Eyes and gone ghosts are nonlethal and must not be targeted. All normal pellets clear the level; power pellets are optional. single_death ends on first death. first_action uses screen-absolute U, D, L, or R. Choose one reachable system-generated candidate; never invent coordinates. COLLECT is the default without a meaningful lethal threat or safe edible opportunity. Use AVOID for a threatened route, reduced escape capacity, or a trap; prefer larger safety and exits. Use ELIMINATE only for an edible ghost reachable before vulnerability expires via a nonlethal route. After selection, the navigator executes at most commit moves and rechecks safety after every move. Prioritize survival. Rows begin [code,id]. Codes map to fixed objective ids; only advertised candidates and their targets are valid this turn. Output exactly one advertised uppercase option code, not a movement action; no other text.",
+  "user": "Choose one tactical objective. Keys: p=Pac-Man [row,column], f=facing, pellets=normal+power pellets remaining, maze=[rows,columns], ghosts=[[id,state,position]], edible_ticks=vulnerability time, last=previous action, life_mode=death rule, c=candidates. Candidate row: [code,id,strategy,target,first_action,distance,commit,safety,exits,entity].\nMetrics: distance=route steps, commit=max executed moves, larger safety/exits are better, entity=ELIMINATE ghost id.\n{\"p\":[24,20],\"f\":\"R\",\"pellets\":196,\"maze\":[25,21],\"ghosts\":[[0,\"vulnerable\",[24,20]],[1,\"vulnerable\",[24,20]],[2,\"vulnerable\",[24,20]],[3,\"vulnerable\",[24,20]]],\"edible_ticks\":360,\"last\":\"R\",\"life_mode\":\"original_three_lives\",\"c\":[[\"B\",\"C0\",\"COLLECT\",[24,20],\"U\",999,8,1000000,4,null],[\"F\",\"C1\",\"COLLECT\",[24,20],\"D\",999,8,1000000,4,null],[\"G\",\"C2\",\"COLLECT\",[24,20],\"L\",999,8,1000000,4,null],[\"H\",\"C3\",\"COLLECT\",[24,20],\"R\",999,8,1000000,4,null],[\"J\",\"A0\",\"AVOID\",[24,20],\"U\",999,3,1000000,4,null],[\"K\",\"A1\",\"AVOID\",[24,20],\"D\",999,3,1000000,4,null],[\"M\",\"A2\",\"AVOID\",[24,20],\"L\",999,3,1000000,4,null],[\"N\",\"A3\",\"AVOID\",[24,20],\"R\",999,3,1000000,4,null],[\"P\",\"E0\",\"ELIMINATE\",[24,20],\"U\",999,6,1000000,4,0],[\"Q\",\"E1\",\"ELIMINATE\",[24,20],\"D\",999,6,1000000,4,1]]}\nUse only the candidates shown for this turn. Return exactly one code from [B,F,G,H,J,K,M,N,P,Q]; nothing else.",
+  "image_count": 1,
+  "base_processor": {
+    "size": {
+      "longest_edge": 16777216,
+      "shortest_edge": 65536
+    },
+    "normal": {
+      "input_tokens": 1017,
+      "system_characters": 1437,
+      "user_characters": 1334,
+      "candidate_count": 10,
+      "ghost_count": 4,
+      "image_height": 400,
+      "image_width": 336
+    },
+    "risk_fallback": {
+      "input_tokens": 983,
+      "system_characters": 1437,
+      "user_characters": 1851,
+      "candidate_count": 4,
+      "ghost_count": 4,
+      "image_height": 400,
+      "image_width": 336
+    }
+  },
+  "grounding_min_pixel_simulation": {
+    "description": "Base processor with the documented grounding minimum pixel area; actual merged checkpoint processor must still be checked before launch.",
+    "size": {
+      "longest_edge": 16777216,
+      "shortest_edge": 537600
+    },
+    "normal": {
+      "input_tokens": 1422,
+      "system_characters": 1437,
+      "user_characters": 1334,
+      "candidate_count": 10,
+      "ghost_count": 4,
+      "image_height": 400,
+      "image_width": 336
+    },
+    "risk_fallback": {
+      "input_tokens": 1388,
+      "system_characters": 1437,
+      "user_characters": 1851,
+      "candidate_count": 4,
+      "ghost_count": 4,
+      "image_height": 400,
+      "image_width": 336
+    }
+  }
+}

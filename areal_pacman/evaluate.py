@@ -1,9 +1,9 @@
-"""Backward-compatible imports for synthetic evaluation."""
-
-from .synthetic.evaluate import evaluate, main, run_episode
-
-__all__ = ["evaluate", "main", "run_episode"]
-
+"""Compatibility entrypoint for pacman_recipe.evaluate."""
+import importlib
+import runpy
+import sys
 
 if __name__ == "__main__":
-    main()
+    runpy.run_module('pacman_recipe.evaluate', run_name="__main__")
+else:
+    sys.modules[__name__] = importlib.import_module('pacman_recipe.evaluate')

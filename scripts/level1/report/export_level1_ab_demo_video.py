@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from maapacman.env import Action, PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.env import Action, PygamePacmanEnv, PygamePacmanEnvConfig
 
 
 OUTCOME_LABELS = {

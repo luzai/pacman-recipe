@@ -11,14 +11,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from maapacman.env import PygamePacmanEnv, PygamePacmanEnvConfig
-from areal_pacman.level1.recipe import load_recipe_settings, recipe_contract_metadata
+from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_recipe.level1.recipe import load_recipe_settings, recipe_contract_metadata
 
-from areal_pacman.level1.level1_dataset import (
+from pacman_recipe.level1.level1_dataset import (
     environment_metadata,
     repository_revisions,
 )
-from areal_pacman.level1.rewards import REWARD_RECIPE_VERSION
+from pacman_recipe.level1.rewards import REWARD_RECIPE_VERSION
 from scripts.level1.dataset.prepare_level1_dataset import (
     validate_prepared_dataset_manifest,
 )
@@ -452,7 +452,7 @@ def main() -> None:
         "prompt_version": recipe_contract["prompt"]["version"],
         "prompt_template_sha256": recipe_contract["prompt"]["template_sha256"],
         "source_revisions": source_revisions,
-        "areal_pacman_revision": recipe_revision,
+        "pacman_recipe_revision": recipe_revision,
         "maapacman_revision": recipe_revision,
         "pacman_python_revision": source_revisions["pacman-python"]["commit"],
         "areal_revision": source_revisions["AReaL"]["commit"],

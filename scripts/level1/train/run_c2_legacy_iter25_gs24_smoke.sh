@@ -11,6 +11,7 @@ if [[ "$1" != /* || ! -d "$1" || "$2" != /* || -e "$2" || -L "$2" ]]; then
   exit 2
 fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "${REPO_ROOT}/scripts/pacman_paths.sh"
 export CURRICULUM1_CHECKPOINT="$(cd "$1" && pwd -P)"
 export CONFIG="${REPO_ROOT}/configs/level1/train/curriculum2.yaml"
 export RUN_ID="legacy-iter25-gs24-smoke-$(date -u +%Y%m%dT%H%M%SZ)"

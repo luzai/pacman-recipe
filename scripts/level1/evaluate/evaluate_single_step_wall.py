@@ -8,15 +8,15 @@ from typing import Any
 import torch
 from transformers import AutoModelForImageTextToText, AutoProcessor
 
-from areal_pacman.actions import ActionParseError, parse_action
-from areal_pacman.level1.level1_dataset import validate_episode_row
-from areal_pacman.level1.prompts import (
+from pacman_recipe.actions import ActionParseError, parse_action
+from pacman_recipe.level1.level1_dataset import validate_episode_row
+from pacman_recipe.level1.prompts import (
     build_image_messages,
     crop_pacman_local_view,
     encode_png,
 )
-from areal_pacman.level1.workflow import PacmanNativeVisionWorkflow
-from maapacman.env import Action, PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_recipe.level1.workflow import PacmanNativeVisionWorkflow
+from pacman_env.env import Action, PygamePacmanEnv, PygamePacmanEnvConfig
 
 
 def parse_args() -> argparse.Namespace:

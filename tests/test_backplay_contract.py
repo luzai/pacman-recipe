@@ -60,7 +60,7 @@ def test_backplay_requires_current_sampled_policy():
 
 
 def test_restart_row_requires_complete_identity():
-    from areal_pacman.level1.level1_dataset import make_episode_row, validate_episode_row
+    from pacman_recipe.level1.level1_dataset import make_episode_row, validate_episode_row
     row = make_episode_row(1, split="train", action_protocol="direct-open-action-token-v1")
     row["restart_state_path"] = "/immutable/state.json"
     with pytest.raises(ValueError, match="together"):

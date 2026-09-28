@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from areal_pacman import baselines as old_baselines
-from areal_pacman import dataset as old_dataset
-from areal_pacman import env as old_env
-from areal_pacman import evaluate as old_evaluate
-from areal_pacman import level1_dataset as old_level1_dataset
-from areal_pacman import maze_suite as old_maze_suite
-from areal_pacman import prompts as old_prompts
-from areal_pacman import rewards as old_rewards
-from areal_pacman import trajectories as old_trajectories
-from areal_pacman import vision as old_vision
-from areal_pacman.level1 import level1_dataset, prompts, rewards, trajectories
-from areal_pacman.synthetic import (
+from pacman_recipe import baselines as old_baselines
+from pacman_recipe import dataset as old_dataset
+from pacman_recipe import env as old_env
+from pacman_recipe import evaluate as old_evaluate
+from pacman_recipe import level1_dataset as old_level1_dataset
+from pacman_recipe import maze_suite as old_maze_suite
+from pacman_recipe import prompts as old_prompts
+from pacman_recipe import rewards as old_rewards
+from pacman_recipe import trajectories as old_trajectories
+from pacman_recipe import vision as old_vision
+from pacman_recipe.level1 import level1_dataset, prompts, rewards, trajectories
+from pacman_recipe.synthetic import (
     baselines,
     dataset,
     env,

@@ -3,13 +3,13 @@ import sys
 import pytest
 
 from scripts.level1.train import check_edward_prompt_budget as budget
-from areal_pacman.level1.prompts import EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT
+from pacman_recipe.level1.prompts import EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT
 from test_level1_recipe import FakeObjectiveTokenizer
 
 
 def test_budget_default_keeps_legacy_prompt_and_all_ten_options():
     messages, user = budget.worst_case_messages(FakeObjectiveTokenizer())
-    assert messages[0]["content"] == EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT
+    assert messages[0]["content"] == EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT
     assert "RISK_FALLBACK" not in user
     assert '"C3"' in user and '"A3"' in user and '"E1"' in user
 

@@ -4,7 +4,7 @@ import sys
 import types
 from pathlib import Path
 
-from areal_pacman.areal_workflow import (
+from pacman_recipe.areal_workflow import (
     IMAGE_ONLY_SYSTEM_PROMPT,
     PARSE_FAILED_ACTION,
     PacmanEpisodeWorkflow,
@@ -16,21 +16,21 @@ from areal_pacman.areal_workflow import (
     parse_action_for_prompt,
     raw_completion_prompt,
 )
-from areal_pacman.analyze_trajectories import format_trajectory, step_legal_action, summarize
-from areal_pacman.render_trajectory_video import (
+from pacman_recipe.analyze_trajectories import format_trajectory, step_legal_action, summarize
+from pacman_recipe.render_trajectory_video import (
     compose_frames,
     compose_single_frames,
     final_grid_after_action,
     grid_from_obs,
 )
-from areal_pacman.run_vision_baselines import (
+from pacman_recipe.run_vision_baselines import (
     compose_vision_video_frames,
     run_vision_episode,
 )
-from areal_pacman.dataset import generate_episode_specs, generate_examples, generate_multi_maze_episode_specs
-from areal_pacman.env import ACTIONS, PacmanEnv
-from areal_pacman.prepare_vision_sft_dataset import generate_shortest_route_sft
-from areal_pacman.train_vision_sft_smoke import iter_batches, prepare_rows
+from pacman_recipe.dataset import generate_episode_specs, generate_examples, generate_multi_maze_episode_specs
+from pacman_recipe.env import ACTIONS, PacmanEnv
+from pacman_recipe.prepare_vision_sft_dataset import generate_shortest_route_sft
+from pacman_recipe.train_vision_sft_smoke import iter_batches, prepare_rows
 
 
 def test_dataset_examples_have_answer():
