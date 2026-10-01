@@ -1990,6 +1990,7 @@ class WorkflowContractTests(unittest.TestCase):
             "trust the structured state",
             "level/tunnel door",
             "Eyes and gone ghosts are nonlethal",
+            "The episode ends on the first death.",
             "COLLECT is the default",
             "Use AVOID for a threatened route",
             "Use ELIMINATE only for",
@@ -2014,7 +2015,6 @@ class WorkflowContractTests(unittest.TestCase):
             "distance=route steps, commit=max executed moves",
             "larger safety/exits are better",
             "entity=ELIMINATE ghost id",
-            "life_mode=death rule",
             "nothing else",
         ):
             self.assertIn(expected, first["model_user_instruction"])

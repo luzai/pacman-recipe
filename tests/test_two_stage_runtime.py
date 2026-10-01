@@ -56,9 +56,11 @@ def test_stage_prompt_templates_identify_actual_distinct_protocols():
     assert c1 == prompt_contract_metadata("live_state_v3", edward_options=False)
 
 
-def test_c1_actual_prompt_has_four_directions_empty_ghosts_and_no_options():
+def test_c1_actual_prompt_limits_actions_to_open_directions():
     user = live_state_instruction(_context())
-    assert "one of U/D/L/R" in user
+    assert "BLOCKED dirs here: U, D" in user
+    assert "OPEN dirs here: L, R" in user
+    assert "Choose ONE ACTION from [L, R]." in user
     assert "Ghosts [id,state,position]: []" in user
     assert "edible_ticks=0" in user
     assert "COLLECT" not in user and "option code" not in user
