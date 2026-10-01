@@ -57,3 +57,29 @@ def test_missing_true_start_is_rejected(fake_bank, tmp_path):
     a.train_seed = [0, 2]
     with pytest.raises(ValueError, match="exactly one true start for seed 2"):
         dd.prepare(a)
+
+
+def test_fixed_states_rebind_earlier_selection(fake_bank, tmp_path):
+    import json
+    source = tmp_path / "source-manifest.json"
+    source.write_text(json.dumps(dict(bank_id="bank-x", state_ids=["restart-16", "restart-15"])))
+    a = args(tmp_path)
+    a.train_seed, a.selected_from = [], source
+    manifest = dd.prepare(a)
+    assert manifest["selection"] == "fixed_states" and manifest["state_ids"] == ["restart-16", "restart-15"]
+    from slime_pacman.preflight import check_dataset
+    config = load_config(a.config)
+    assert check_dataset(a.output, config, manifest["source_revisions"]) == manifest
+    (a.output / "selected-from.json").write_text(json.dumps(dict(bank_id="bank-x", state_ids=["restart-mid"])))
+    with pytest.raises(ValueError, match="selected-from evidence"):
+        check_dataset(a.output, config, manifest["source_revisions"])
+
+
+def test_fixed_states_reject_other_bank(fake_bank, tmp_path):
+    import json
+    source = tmp_path / "source-manifest.json"
+    source.write_text(json.dumps(dict(bank_id="bank-y", state_ids=["restart-mid"])))
+    a = args(tmp_path)
+    a.train_seed, a.selected_from = [], source
+    with pytest.raises(ValueError, match="different teacher bank"):
+        dd.prepare(a)
