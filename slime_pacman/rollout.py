@@ -4,6 +4,7 @@ from copy import copy
 from dataclasses import dataclass
 from functools import lru_cache
 import logging
+import json
 import os
 from pathlib import Path
 import uuid
@@ -158,8 +159,172 @@ def current_sources():
     }
 
 
-async def generate_episode(args, sample, sampling_params, evaluation=False):
+def episode_workers():
+    """Episodes run in this many worker processes (0 = in the rollout process).
+
+    The Edward planner is pure Python, so episodes sharing one asyncio loop serialize
+    on the GIL: profiled at ~0.4 s of planner CPU per decision with the GPUs idle.
+    """
+    workers = int(os.environ.get("PACMAN_EPISODE_WORKERS", "0"))
+    if workers < 0:
+        raise ValueError("PACMAN_EPISODE_WORKERS must be nonnegative")
+    return workers
+
+
+_EPISODE_POOL = None
+
+
+def _init_episode_worker():
+    # Episode workers are CPU-only and run dozens at a time: never initialize CUDA (the
+    # Ray actor's environment exposes the training GPUs) and keep one thread each so
+    # torch/OpenMP pools do not oversubscribe the host. Inherited by pygame subprocesses.
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+        os.environ[name] = "1"
+    import torch
+
+    torch.set_num_threads(1)
+
+
+def _episode_pool(workers):
+    global _EPISODE_POOL
+    if _EPISODE_POOL is None:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        # spawn: the rollout process is a threaded Ray actor, so fork is unsafe.
+        _EPISODE_POOL = ProcessPoolExecutor(
+            max_workers=workers,
+            mp_context=multiprocessing.get_context("spawn"),
+            initializer=_init_episode_worker,
+        )
+    return _EPISODE_POOL
+
+
+@lru_cache(maxsize=2)
+def _worker_tokenizer_and_processor(hf_checkpoint):
+    # Same loaders as slime's GenerateState in the rollout process.
+    from slime.utils.processing_utils import load_processor, load_tokenizer
+
+    return (
+        load_tokenizer(hf_checkpoint, trust_remote_code=True),
+        load_processor(hf_checkpoint, trust_remote_code=True),
+    )
+
+
+def _multimodal_to_numpy(decisions):
+    # Copy tensors by value through the result pipe; torch's default tensor pickling
+    # would pass one file descriptor per storage (thousands per rollout).
+    for decision in decisions:
+        decision.multimodal_train_inputs = {
+            key: value.numpy() if hasattr(value, "numpy") else value
+            for key, value in decision.multimodal_train_inputs.items()
+        }
+
+
+def _multimodal_to_torch(decisions):
+    import numpy
+    import torch
+
+    for decision in decisions:
+        decision.multimodal_train_inputs = {
+            key: torch.from_numpy(value) if isinstance(value, numpy.ndarray) else value
+            for key, value in decision.multimodal_train_inputs.items()
+        }
+
+
+def write_death_candidates(path, boundaries, episode, source):
+    """Persist pre-death decision boundaries (distances 4/8/16) of a death episode, atomically."""
+    from .dynamic_bank import CANDIDATE_SCHEMA, death_candidates
+
+    candidates = death_candidates(boundaries, episode.terminal_reason)
+    if not candidates:
+        return None
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    last = list(boundaries)[-1]
+    payload = {
+        "schema": CANDIDATE_SCHEMA,
+        "source": dict(source, terminal_reason=episode.terminal_reason, reward=episode.reward,
+                       weight_version=episode.weight_version, decision_count=len(boundaries)),
+        "seed": last["env_state"]["payload"]["episode"]["seed"],
+        "last_choice_position": last["features"]["pacman_position"],
+        "candidates": [dict(distance=d, boundary=b) for d, b in candidates],
+    }
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload))
+    os.replace(temporary, path)
+    return path
+
+
+async def _collect_episode(
+    record, *, endpoint, tokenizer, processor, config, expected_sources, version, capture=None
+):
     import httpx
+    from collections import deque
+
+    from .dynamic_bank import RING_SIZE
+
+    async with httpx.AsyncClient(
+        timeout=120.0, limits=httpx.Limits(max_keepalive_connections=0)
+    ) as client:
+        generator = SGLangGenerator(
+            processor=processor,
+            endpoint=endpoint,
+            client=client,
+            max_input_tokens=config.max_input_tokens,
+        )
+        runner = EpisodeRunner(
+            record,
+            tokenizer=tokenizer,
+            generate=generator,
+            config=config,
+            expected_sources=expected_sources,
+            pacman_python_root=pacman_python_root(),
+        )
+        boundaries = None
+        if capture is not None:
+            boundaries = deque(maxlen=RING_SIZE)
+            runner.decision_boundary_sink = boundaries.append
+        episode = await runner.collect(empty_weight_version=version)
+    if capture is not None:
+        write_death_candidates(capture["path"], boundaries, episode, capture["source"])
+    return episode
+
+
+def collect_episode_in_worker(
+    record, endpoint, hf_checkpoint, config_path, expected_sources, version, capture=None,
+    summary_only=False,
+):
+    """Worker-process entry point: one complete episode, tensors returned as numpy.
+
+    capture: {"path", "source"} to write death candidates; summary_only drops decisions
+    (probe/initialization episodes need only the outcome).
+    """
+    import asyncio
+
+    tokenizer, processor = _worker_tokenizer_and_processor(hf_checkpoint)
+    episode = asyncio.run(
+        _collect_episode(
+            record,
+            endpoint=endpoint,
+            tokenizer=tokenizer,
+            processor=processor,
+            config=load_config(config_path),
+            expected_sources=expected_sources,
+            version=version,
+            capture=capture,
+        )
+    )
+    if summary_only:
+        episode.decisions = []
+    _multimodal_to_numpy(episode.decisions)
+    return episode
+
+
+async def generate_episode(args, sample, sampling_params, evaluation=False):
+    import asyncio
+
     from slime.rollout.sglang_rollout import GenerateState, get_model_url
 
     config = load_config(os.environ["PACMAN_SLIME_CONFIG"])
@@ -172,25 +337,40 @@ async def generate_episode(args, sample, sampling_params, evaluation=False):
     version = "" if version_value is None else str(version_value)
     run_dir = Path(os.environ["PACMAN_RUN_DIR"])
     artifact_id = f"{'eval' if evaluation else 'train'}-{sample.group_index}-{sample.index}-{uuid.uuid4().hex}"
+    workers = episode_workers()
+    capture = None
+    capture_dir = getattr(args, "_pacman_capture_dir", None)
+    if capture_dir is not None and not evaluation:
+        # Dynamic bank: training episodes record pre-death decision boundaries.
+        capture = dict(path=str(Path(capture_dir) / f"{artifact_id}.json"),
+                       source=dict(artifact_id=artifact_id, start_id=record["id"],
+                                   group_index=sample.group_index, sample_index=sample.index,
+                                   rollout_id=getattr(args, "_pacman_rollout_id", None)))
     try:
-        async with httpx.AsyncClient(
-            timeout=120.0, limits=httpx.Limits(max_keepalive_connections=0)
-        ) as client:
-            generator = SGLangGenerator(
-                processor=state.processor,
-                endpoint=get_model_url(args, "policy"),
-                client=client,
-                max_input_tokens=config.max_input_tokens,
-            )
-            runner = EpisodeRunner(
+        if workers:
+            episode = await asyncio.get_running_loop().run_in_executor(
+                _episode_pool(workers),
+                collect_episode_in_worker,
                 record,
+                get_model_url(args, "policy"),
+                args.hf_checkpoint,
+                os.environ["PACMAN_SLIME_CONFIG"],
+                current_sources(),
+                version,
+                capture,
+            )
+            _multimodal_to_torch(episode.decisions)
+        else:
+            episode = await _collect_episode(
+                record,
+                endpoint=get_model_url(args, "policy"),
                 tokenizer=state.tokenizer,
-                generate=generator,
+                processor=state.processor,
                 config=config,
                 expected_sources=current_sources(),
-                pacman_python_root=pacman_python_root(),
+                version=version,
+                capture=capture,
             )
-            episode = await runner.collect(empty_weight_version=version)
         if episode.decisions and not episode.weight_version:
             raise ValueError("episode has no verified weight version")
         write_json_new(

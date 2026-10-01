@@ -27,6 +27,7 @@ from pacman_env.planner import (
     EdwardPlanner,
     EdwardSafetyRefusal,
     PlannerCandidate,
+    nearest_lethal_ghost_distance,
     validate_fallback_mode,
 )
 
@@ -74,6 +75,54 @@ LOGGER = logging.getLogger(__name__)
 # underlying failure is a transient serving-layer glitch, not a policy or
 # prompt problem. 3 = 1 initial attempt + 2 retries.
 _MASK_LEAK_RETRY_ATTEMPTS = 3
+
+
+DECISION_BOUNDARY_SCHEMA = "pacman-decision-boundary-v1"
+
+
+def _boundary_verify(png, candidates, constraint, system_prompt, user_prompt):
+    """What a restored boundary must reproduce exactly before the model is asked."""
+    return json.loads(json.dumps({
+        "png_sha256": png_sha256(png),
+        "candidates": [candidate.as_dict() for candidate in candidates],
+        "allowed_token_ids": [int(token) for token in constraint.allowed_token_ids],
+        "system_prompt_sha256": text_sha256(system_prompt),
+        "user_prompt_sha256": text_sha256(user_prompt),
+    }))
+
+
+def _decision_boundary(
+    env, planner, cell_exit_history, recent_actions, recent_positions, no_progress_steps, verify,
+    live_snapshot, previous_info,
+):
+    """Full continuation point before an Edward option choice (env + planner + runner)."""
+    return {
+        "schema": DECISION_BOUNDARY_SCHEMA,
+        "env_state": env.save_state(),
+        "context": {
+            "planner": {
+                "remaining": sorted([p.row, p.col] for p in planner.remaining),
+                "last_action": planner.last_action,
+                "fallback_mode": planner.fallback_mode,
+            },
+            "runner": {
+                "cell_exit_history": sorted(
+                    [row, col, list(actions)] for (row, col), actions in cell_exit_history.items()
+                ),
+                "recent_actions": list(recent_actions),
+                "recent_positions": [list(position) for position in recent_positions],
+                "no_progress_steps": int(no_progress_steps),
+            },
+            "verify": verify,
+        },
+        # Bank diversity features (not used for restoration).
+        "features": {
+            "pacman_position": [int(v) for v in previous_info["pacman_position"]],
+            "normal_pellets_remaining": int(previous_info["normal_pellets_remaining"]),
+            "nearest_lethal_ghost_distance": nearest_lethal_ghost_distance(live_snapshot, planner.level),
+            "env_step": int(previous_info["step"]),
+        },
+    }
 
 
 def _compact_edward_decision_prompt(
@@ -272,6 +321,8 @@ class PacmanEpisodeRunner:
         )
         self.action_token_id_by_action: dict[str, int] = {}
         self.objective_tokenizer: Any | None = None
+        # Optional: called with a full decision boundary before each Edward option choice.
+        self.decision_boundary_sink: Callable[[dict[str, Any]], None] | None = None
         if workflow_kwargs.get("open_action_mask") or workflow_kwargs.get(
             "edward_options"
         ):
@@ -588,6 +639,29 @@ class PacmanEpisodeRunner:
                     int(previous_info["pacman_position"][1]),
                 )
             )
+            boundary_expected = None
+            boundary_context = (restart_saved or {}).get("boundary_context")
+            if boundary_context is not None:
+                # Dynamic-bank decision boundary: resume planner and runner history
+                # exactly; the first decision must reproduce the recorded one.
+                if planner is None or boundary_context["planner"]["fallback_mode"] != fallback_mode:
+                    raise ValueError("decision boundary requires the same Edward fallback mode")
+                planner.remaining = {
+                    Position(int(row), int(col))
+                    for row, col in boundary_context["planner"]["remaining"]
+                }
+                planner.last_action = boundary_context["planner"]["last_action"]
+                runner_state = boundary_context["runner"]
+                cell_exit_history = {
+                    (int(row), int(col)): list(actions)
+                    for row, col, actions in runner_state["cell_exit_history"]
+                }
+                recent_actions = list(runner_state["recent_actions"])
+                recent_positions = [
+                    (int(row), int(col)) for row, col in runner_state["recent_positions"]
+                ]
+                no_progress_steps = int(runner_state["no_progress_steps"])
+                boundary_expected = boundary_context["verify"]
             if level is not None:
                 live_state = env.snapshot()
                 if (
@@ -842,6 +916,26 @@ class PacmanEpisodeRunner:
                             raise RuntimeError(
                                 "new Edward decision has no token constraint"
                             )
+                        if boundary_expected is not None or self.decision_boundary_sink is not None:
+                            verify = _boundary_verify(
+                                png, option_candidates, objective_constraint,
+                                system_prompt, model_user_instruction,
+                            )
+                            if boundary_expected is not None:
+                                differing = sorted(
+                                    key for key in verify if verify[key] != boundary_expected.get(key)
+                                )
+                                if differing or set(boundary_expected) != set(verify):
+                                    raise ValueError(
+                                        f"restored decision boundary differs: {differing}"
+                                    )
+                                boundary_expected = None
+                            if self.decision_boundary_sink is not None:
+                                self.decision_boundary_sink(_decision_boundary(
+                                    env, planner, cell_exit_history, recent_actions,
+                                    recent_positions, no_progress_steps, verify,
+                                    live_snapshot, previous_info,
+                                ))
                         if scripted_objectives:
                             scripted_option = str(scripted_objectives.pop(0))
                             completion = objective_constraint.code_for_option(

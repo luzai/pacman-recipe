@@ -550,6 +550,29 @@ def _collect_route_safety(
     return escape_distance is not None, choke_points, escape_distance
 
 
+def nearest_lethal_ghost_distance(
+    state: Mapping[str, Any], level: LevelDefinition | None = None
+) -> int | None:
+    """Ghost-walkable distance from the nearest lethal ghost to Pacman (Edward's map rules).
+
+    None when no lethal ghost exists or none can reach Pacman.
+    """
+    level = level or load_bundled_level(1)
+    player = _position(state.get("pacman_position"))
+    if player is None:
+        player = _position((state.get("row"), state.get("col")))
+    if player is None:
+        raise ValueError("state must contain a valid Pacman position")
+    lethal = tuple(
+        _GhostThreat(ghost.get("id"), position)
+        for ghost in state.get("ghosts") or ()
+        if isinstance(ghost, Mapping)
+        and ghost.get("state") in _LETHAL_STATES
+        and (position := _position(ghost.get("position"))) is not None
+    )
+    return _ghost_distance(level, lethal, player)
+
+
 class EdwardPlanner:
     """Stateful deterministic planner for one Level-1 episode."""
 

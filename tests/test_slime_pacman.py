@@ -318,3 +318,106 @@ def test_upstream_samples_preserve_episode_identity_and_vision_fields():
         and empty[0].loss_mask == [0]
         and empty[0].train_metadata["empty_episode"]
     )
+
+
+def _vision_decision(pixels, grid):
+    return Decision("p", [1, 2], 66, "B", [66], -0.5, "v0",
+                    {"pixel_values": pixels, "image_grid_thw": grid}, "a" * 64, [-0.5])
+
+
+def test_worker_multimodal_transfer_is_bit_exact():
+    import pickle
+    from slime_pacman.rollout import EpisodeResult, _multimodal_to_numpy, _multimodal_to_torch
+
+    pixels = torch.randn(7, 1536, generator=torch.Generator().manual_seed(0))
+    grid = torch.tensor([[1, 2, 4]])
+    episode = EpisodeResult(1.0, [_vision_decision(pixels.clone(), grid.clone())], "v0", None, "all_normal_pellets")
+    _multimodal_to_numpy(episode.decisions)
+    assert all(isinstance(v, np.ndarray) for v in episode.decisions[0].multimodal_train_inputs.values())
+    received = pickle.loads(pickle.dumps(episode))
+    _multimodal_to_torch(received.decisions)
+    mm = received.decisions[0].multimodal_train_inputs
+    assert mm["pixel_values"].dtype == torch.float32 and torch.equal(mm["pixel_values"], pixels)
+    assert mm["image_grid_thw"].dtype == torch.int64 and torch.equal(mm["image_grid_thw"], grid)
+
+
+@pytest.mark.parametrize("value, expected", [(None, 0), ("0", 0), ("48", 48)])
+def test_episode_workers_setting(monkeypatch, value, expected):
+    from slime_pacman.rollout import episode_workers
+
+    if value is None:
+        monkeypatch.delenv("PACMAN_EPISODE_WORKERS", raising=False)
+    else:
+        monkeypatch.setenv("PACMAN_EPISODE_WORKERS", value)
+    assert episode_workers() == expected
+    monkeypatch.setenv("PACMAN_EPISODE_WORKERS", "-1")
+    with pytest.raises(ValueError):
+        episode_workers()
+
+
+def test_generate_episode_worker_path_restores_tensors_and_writes_episode(monkeypatch, tmp_path):
+    Sample = pytest.importorskip("slime.utils.types").Sample
+    sglang_rollout = pytest.importorskip("slime.rollout.sglang_rollout")
+    from concurrent.futures import ThreadPoolExecutor
+
+    from slime_pacman import rollout
+    from slime_pacman.rollout import EpisodeResult
+
+    pixels, grid = torch.ones(3, 1536), torch.tensor([[1, 1, 3]])
+    calls = []
+
+    def fake_worker(record, endpoint, hf_checkpoint, config_path, expected_sources, version, capture=None):
+        calls.append((record["id"], endpoint, hf_checkpoint, config_path, version))
+        episode = EpisodeResult(1.0, [_vision_decision(pixels.clone(), grid.clone())] * 2, "v0", None,
+                                "all_normal_pellets")
+        rollout._multimodal_to_numpy(episode.decisions)
+        return episode
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text((ROOT / "configs/slime/c2.yaml").read_text())
+    monkeypatch.setenv("PACMAN_EPISODE_WORKERS", "2")
+    monkeypatch.setenv("PACMAN_SLIME_CONFIG", str(config_path))
+    monkeypatch.setenv("PACMAN_RUN_DIR", str(tmp_path / "run"))
+    monkeypatch.setattr(rollout, "_episode_pool", lambda workers: ThreadPoolExecutor(workers))
+    monkeypatch.setattr(rollout, "collect_episode_in_worker", fake_worker)
+    monkeypatch.setattr(rollout, "current_sources", lambda: {"fake": True})
+    monkeypatch.setattr(sglang_rollout, "GenerateState", lambda args: SimpleNamespace(tokenizer=Tokenizer()))
+    monkeypatch.setattr(sglang_rollout, "get_model_url", lambda args, name: "http://engine/generate")
+    args = SimpleNamespace(hf_checkpoint="/model", _rollout_weight_version="v0")
+    parent = Sample(index=5, group_index=3, metadata={"episode_record": {"id": "seed28"}})
+    samples = asyncio.run(rollout.generate_episode(args, parent, {}))
+    assert calls == [("seed28", "http://engine/generate", "/model", str(config_path), "v0")]
+    assert len(samples) == 2
+    for s in samples:
+        assert torch.equal(s.multimodal_train_inputs["pixel_values"], pixels)
+        assert torch.equal(s.multimodal_train_inputs["image_grid_thw"], grid)
+    written = list((tmp_path / "run" / "episodes").glob("train-3-5-*.json"))
+    assert len(written) == 1
+    stored = json.loads(written[0].read_text())
+    assert stored["reward"] == 1.0 and len(stored["decisions"]) == 2
+    assert all("multimodal_train_inputs" not in d for d in stored["decisions"])
+
+
+def _worker_environment(_):
+    import os
+
+    import torch
+
+    return (os.getpid(), os.environ.get("CUDA_VISIBLE_DEVICES"), os.environ.get("OMP_NUM_THREADS"),
+            torch.get_num_threads())
+
+
+def test_episode_pool_workers_are_cpu_only_single_threaded_processes(monkeypatch):
+    import os
+
+    from slime_pacman import rollout
+
+    monkeypatch.setattr(rollout, "_EPISODE_POOL", None)
+    pool = rollout._episode_pool(2)
+    try:
+        results = list(pool.map(_worker_environment, range(4)))
+    finally:
+        pool.shutdown()
+        rollout._EPISODE_POOL = None
+    assert all(pid != os.getpid() for pid, *_ in results)
+    assert {(cuda, omp, threads) for _, cuda, omp, threads in results} == {("", "1", 1)}
