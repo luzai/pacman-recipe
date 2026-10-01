@@ -1,0 +1,13 @@
+--- a/python/sglang/srt/models/qwen3_5.py
++++ b/python/sglang/srt/models/qwen3_5.py
+@@ -1000,7 +1000,9 @@
+         forward_batch: ForwardBatch,
+     ) -> torch.Tensor:
+         """Full attention forward pass."""
+-        if _is_cuda and self.attn_output_gate:
++        # The fused QK-norm/RoPE/gate kernel reads 1-D positions only; mRoPE passes
++        # (3, T) positions, so 2-D positions take the native MRotaryEmbedding path.
++        if _is_cuda and self.attn_output_gate and positions.ndim == 1:
+             q, k, v, gate = self.forward_prepare_cuda_fused(
+                 positions=positions,
+                 hidden_states=hidden_states,

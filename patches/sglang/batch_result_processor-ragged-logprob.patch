@@ -1,0 +1,24 @@
+--- a/python/sglang/srt/managers/scheduler_components/batch_result_processor.py
++++ b/python/sglang/srt/managers/scheduler_components/batch_result_processor.py
+@@ -384,7 +384,9 @@
+                 ]
+             if logits_output.next_token_token_ids_logprobs_val:
+                 logits_output.next_token_token_ids_logprobs_val = [
+-                    v.tolist() for v in logits_output.next_token_token_ids_logprobs_val
++                    # Ragged or empty per-request entries arrive as lists; tensors only when uniform.
++                    v.tolist() if torch.is_tensor(v) else v
++                    for v in logits_output.next_token_token_ids_logprobs_val
+                 ]
+             if logits_output.next_token_top_p_token_ids:
+                 logits_output.next_token_top_p_token_ids = [
+@@ -774,7 +776,9 @@
+ 
+             if logits_output.next_token_token_ids_logprobs_val:
+                 logits_output.next_token_token_ids_logprobs_val = [
+-                    v.tolist() for v in logits_output.next_token_token_ids_logprobs_val
++                    # Ragged or empty per-request entries arrive as lists; tensors only when uniform.
++                    v.tolist() if torch.is_tensor(v) else v
++                    for v in logits_output.next_token_token_ids_logprobs_val
+                 ]
+             if logits_output.next_token_top_p_token_ids:
+                 logits_output.next_token_top_p_token_ids = [
