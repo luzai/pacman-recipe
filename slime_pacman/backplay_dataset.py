@@ -14,6 +14,7 @@ from .config import load_config, runner_options
 
 SCHEMA = "pacman-backplay-smoke-dataset-v1"
 SELECTION_SUCCESS_RANGE = (0.1, 0.9)
+SELECTION_MODES = ("smoke", "curriculum")
 PREPARATION_ONLY_SOURCE_FILES = {"slime_pacman/backplay_dataset.py", "slime_pacman/preflight.py"}
 
 
@@ -65,7 +66,7 @@ def _check_probe_recipe(current_sources, probe_sources, current_recipe, probe_re
     return str(probe_recipe)
 
 
-def validate_selection(bank_dir, state_ids, reports, weight_version, expected_provenance):
+def validate_selection(bank_dir, state_ids, reports, weight_version, expected_provenance, allow_true_initial=False):
     if len(state_ids) != 4 or len(set(state_ids)) != 4:
         raise ValueError("smoke requires four distinct restart states")
     bank = load_restart_bank(bank_dir)
@@ -73,7 +74,8 @@ def validate_selection(bank_dir, state_ids, reports, weight_version, expected_pr
         raise ValueError("probe provenance bank differs")
     entries = {entry["restart_state_id"]: entry for entry in bank["restart_states"]}
     selected = [entries[state_id] for state_id in state_ids]
-    if any(entry["is_true_initial_state"] for entry in selected):
+    # Curriculum stages whose frontier has reached the start train from the true initial state.
+    if not allow_true_initial and any(entry["is_true_initial_state"] for entry in selected):
         raise ValueError("backplay smoke requires noninitial restart states")
     trajectory_ids = {entry["trajectory_id"] for entry in selected}
     if len(trajectory_ids) != 4:
@@ -140,7 +142,11 @@ def check_dataset(directory, config, sources):
             raise ValueError(f"probe {key} differs from training")
     _check_probe_recipe(sources, provenance["source_revisions"], Path(__file__).resolve().parents[1],
                         manifest.get("probe_recipe_path"))
-    bank = validate_selection(manifest["bank_path"], manifest["state_ids"], reports, manifest["weight_version"], provenance)
+    selection_mode = manifest.get("selection_mode", "smoke")
+    if selection_mode not in SELECTION_MODES:
+        raise ValueError("unknown selection mode")
+    bank = validate_selection(manifest["bank_path"], manifest["state_ids"], reports, manifest["weight_version"], provenance,
+                              allow_true_initial=selection_mode == "curriculum")
     if bank["bank_id"] != manifest["bank_id"]:
         raise ValueError("restart bank changed")
     if set(manifest["files"]) != {"train.jsonl", "validation.jsonl"}:
@@ -177,7 +183,9 @@ def prepare(args):
             raise ValueError(f"probe {key} differs from training")
     probe_recipe_path = _check_probe_recipe(template["source_revisions"], provenance["source_revisions"],
                                             args.recipe, getattr(args, "probe_recipe", None))
-    bank = validate_selection(args.bank, args.candidate_id, reports, args.weight_version, provenance)
+    allow_true_initial = getattr(args, "allow_true_initial", False)
+    bank = validate_selection(args.bank, args.candidate_id, reports, args.weight_version, provenance,
+                              allow_true_initial=allow_true_initial)
     rows = [bind_restart_record(template, args.bank, state_id) for state_id in args.candidate_id]
     args.output.mkdir(parents=True, exist_ok=False)
     manifest = dict(schema=SCHEMA, training_backend="slime", config=config.as_dict(),
@@ -187,6 +195,9 @@ def prepare(args):
                     selection_success_range=list(SELECTION_SUCCESS_RANGE),
                     server_runtime_sha256=provenance["server_runtime_sha256"],
                     validation_scope="reused_restart_infrastructure_only", finalist_reports=[], files={})
+    if allow_true_initial:
+        # Recorded only when set, so manifests of existing smoke datasets stay byte-identical.
+        manifest["selection_mode"] = "curriculum"
     for i, report in enumerate(reports):
         path = args.output / f"finalist-{i}.json"
         write_json_new(path, report)
@@ -212,6 +223,8 @@ def main():
     parser.add_argument("--candidate-id", action="append", required=True)
     parser.add_argument("--finalist-report", action="append", type=Path, required=True)
     parser.add_argument("--weight-version", required=True)
+    parser.add_argument("--allow-true-initial", action="store_true",
+                        help="curriculum stage: selected states may include true initial states")
     prepare(parser.parse_args())
 
 

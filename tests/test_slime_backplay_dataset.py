@@ -49,6 +49,16 @@ def test_selection_rejects_easy_states_duplicates_and_foreign_policy(inputs, tmp
         dataset.validate_selection(tmp_path, ids, [report], "v0", dict(bank_id="bank-1"))
 
 
+def test_true_initial_states_only_in_curriculum_mode(inputs, tmp_path):
+    bank, report = inputs
+    bank["restart_states"][0]["is_true_initial_state"] = True
+    ids = [f"state-{i}" for i in range(4)]
+    with pytest.raises(ValueError, match="noninitial"):
+        dataset.validate_selection(tmp_path, ids, [report], "v0", dict(bank_id="bank-1"))
+    assert dataset.validate_selection(tmp_path, ids, [report], "v0", dict(bank_id="bank-1"),
+                                      allow_true_initial=True) == bank
+
+
 def test_changed_selection_policy_requires_matching_frozen_probe_source(tmp_path, monkeypatch):
     current, frozen = tmp_path / "current", tmp_path / "frozen"
     for root, selector in ((current, "new"), (frozen, "old")):
@@ -92,6 +102,7 @@ def test_smoke_dataset_roundtrip_and_evidence_tampering(inputs, tmp_path, monkey
                            recipe=tmp_path, game=tmp_path, slime=tmp_path, weight_version="v0",
                            server_manifest=server_manifest, finalist_report=[report_path], candidate_id=[f"state-{i}" for i in range(4)])
     manifest = dataset.prepare(args)
+    assert "selection_mode" not in manifest
     assert manifest["files"]["train.jsonl"]["rows"] == 4
     assert manifest["files"]["validation.jsonl"]["rows"] == 1
     from slime_pacman.preflight import check_dataset
@@ -101,3 +112,34 @@ def test_smoke_dataset_roundtrip_and_evidence_tampering(inputs, tmp_path, monkey
     with pytest.raises(ValueError, match="checksum"):
         check_dataset(args.output, load_config(config_path), template["source_revisions"])
 
+
+def test_curriculum_dataset_with_true_initial_state_roundtrips(inputs, tmp_path, monkeypatch):
+    bank, report = inputs
+    bank["restart_states"][0]["is_true_initial_state"] = True
+    config_path = tmp_path / "config.yaml"
+    raw = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs/slime/c2.yaml").read_text())
+    raw["updates"] = 1
+    config_path.write_text(yaml.safe_dump(raw))
+    server_manifest = tmp_path / "server.json"
+    server_manifest.write_text("{}")
+    report["provenance"] = dataset.probe_provenance(record(), load_config(config_path), "bank-1", dataset._sha(server_manifest))
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps(report))
+    template = record()
+    monkeypatch.setattr(dataset, "make_episode_record", lambda *a, **k: template)
+    monkeypatch.setattr(dataset, "bind_restart_record", lambda source, _, state_id: dict(source, id=state_id))
+    args = SimpleNamespace(config=config_path, bank=tmp_path, output=tmp_path / "dataset",
+                           recipe=tmp_path, game=tmp_path, slime=tmp_path, weight_version="v0",
+                           server_manifest=server_manifest, finalist_report=[report_path],
+                           candidate_id=[f"state-{i}" for i in range(4)], allow_true_initial=True)
+    manifest = dataset.prepare(args)
+    assert manifest["selection_mode"] == "curriculum"
+    from slime_pacman.preflight import check_dataset
+    assert check_dataset(args.output, load_config(config_path), template["source_revisions"]) == manifest
+    # Dropping the recorded mode must not silently re-admit the true initial state.
+    path = args.output / "manifest.json"
+    stored = json.loads(path.read_text())
+    del stored["selection_mode"]
+    path.write_text(json.dumps(stored))
+    with pytest.raises(ValueError, match="noninitial"):
+        check_dataset(args.output, load_config(config_path), template["source_revisions"])
