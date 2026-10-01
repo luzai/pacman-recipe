@@ -112,14 +112,14 @@ def build_restart_bank(
     config: PygamePacmanEnvConfig | None = None, stride: int = 32, dense_tail: int = 16,
     env_factory: Callable = PygamePacmanEnv, planner_factory: Callable = EdwardPlanner,
 ) -> dict[str, Any]:
-    """Publish 1--5 successful teacher trajectories into a new directory.
+    """Publish 1--10 successful teacher trajectories into a new directory.
 
     Seed attempts are bounded by the supplied list. Failed attempts contribute
     diagnostics only; no restart files are written unless enough teachers win.
     """
     _positive_integer(trajectories, "trajectories")
-    if trajectories > 5:
-        raise ValueError("the minimal bank supports at most five trajectories")
+    if trajectories > 10:
+        raise ValueError("the bounded bank supports at most ten trajectories")
     _positive_integer(stride, "stride")
     _positive_integer(dense_tail, "dense_tail")
     seeds = list(seeds)
@@ -147,6 +147,9 @@ def build_restart_bank(
     # accidental reuse of a directory from an earlier policy or source version.
     output_dir.mkdir(parents=True, exist_ok=False)
     manifest = {"schema": BANK_SCHEMA, "teacher": "edward-advertised-options-v1",
+                "environment": {"ghost_mode": config.ghost_mode,
+                                "episode_life_mode": config.episode_life_mode,
+                                "max_steps": config.max_steps},
                 "horizon_semantics": "preserve_original_remaining_steps",
                 "learner_actions": ["U", "D", "L", "R"],
                 "stride": stride, "dense_tail": dense_tail,

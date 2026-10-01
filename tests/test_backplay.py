@@ -77,7 +77,7 @@ class TeacherPlanner:
 
 def make_bank(path, **kwargs):
     return build_restart_bank(path, seeds=kwargs.pop("seeds", [0]), stride=3, dense_tail=2,
-                              config=SimpleNamespace(max_steps=8),
+                              config=SimpleNamespace(max_steps=8, ghost_mode="normal", episode_life_mode="single_death"),
                               env_factory=TeacherEnv, planner_factory=TeacherPlanner, **kwargs)
 
 

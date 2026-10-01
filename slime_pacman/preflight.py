@@ -17,6 +17,9 @@ from .config import load_config
 def check_dataset(directory, config, sources):
     directory = Path(directory)
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("schema") == "pacman-backplay-smoke-dataset-v1":
+        from .backplay_dataset import check_dataset as check_backplay_dataset
+        return check_backplay_dataset(directory, config, sources)
     if (
         manifest.get("schema") != "pacman-dataset-manifest-v1"
         or manifest.get("training_backend") != "slime"
@@ -101,7 +104,7 @@ def check_model(directory):
         "path": str(directory.resolve()),
         "shards": shards,
         "processor_class": type(processor).__name__,
-        "image_size": processor.image_processor.size,
+        "image_size": dict(processor.image_processor.size),
     }
 
 

@@ -1,5 +1,33 @@
 # Primitive-action Adaptive Backplay experiment
 
+## slime options smoke preparation
+
+The independent slime adapter can now bind a restart bank entry with
+`slime_pacman.backplay.bind_restart_record`. It preserves the original simulator
+horizon and starts fresh options context. Banks for this path must explicitly
+record normal ghosts and `single_death`; historical three-life banks are rejected.
+Build a new bank using `build_restart_bank.py --episode-life-mode single_death
+--trajectories 5` and a bounded seed list. The builder supports up to ten teachers.
+Saved-state runtime and source compatibility are still checked during restoration.
+
+`python -m slime_pacman.probe_backplay --help` exposes a frozen-policy SGLang
+probe using the production options runner. Use fresh output directories and an
+exact server weight version. Coarse probes may use fewer samples; finalist probes
+require at least 24 independent episodes and report Wilson intervals. Their
+episodes are evaluation artifacts and must not be reused as training data.
+For a one-update smoke, choose four distinct teacher routes with measured
+30–70% success states, then sample twelve new episodes per state. This provides
+48 training episodes; it does not establish true-start success or resolve the
+separate Megatron/SGLang numerical mismatch gate.
+
+After finalist probes, `python -m slime_pacman.backplay_dataset --help` writes
+an explicit one-update manifest. It requires four distinct teacher action routes,
+checks the independent finalist reports and frozen policy version, and pins all
+restart files. The standard preflight recognizes this separate manifest schema;
+ordinary datasets retain their contiguous seed checks. Its single validation row
+reuses the first selected restart for infrastructure checks only. Keep true-start
+and generalization evaluation separate, and do not interpret this row as holdout.
+
 This is a bounded experiment, not evidence that cold start is solved. The maze
 stays fixed; the distribution of restart states changes. Failure-only rollouts
 can still have shaped-reward dispersion, so both the current true-start policy

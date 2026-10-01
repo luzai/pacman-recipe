@@ -159,11 +159,22 @@ def validate_episode_record(record, *, expected_sources=None):
         "test",
     }:
         raise ValueError("invalid record identity")
+    if "restart" in record:
+        restart = record["restart"]
+        if not isinstance(restart, dict) or set(restart) != {"path", "sha256", "id"}:
+            raise ValueError("restart requires path, sha256 and id")
+        if not all(isinstance(value, str) and value for value in restart.values()):
+            raise ValueError("restart fields must be nonempty strings")
+        if not Path(restart["path"]).is_absolute():
+            raise ValueError("restart path must be absolute on the rollout worker")
+        digest = restart["sha256"]
+        if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise ValueError("invalid restart file hash")
 
 
 def runner_row(record):
     validate_episode_record(record)
-    return dict(
+    row = dict(
         id=record["id"],
         split=record["split"],
         dataset_contract_version=EPISODE_SCHEMA,
@@ -174,6 +185,9 @@ def runner_row(record):
         action_protocol=record["prompt"]["action_protocol"],
         prompt_version=record["prompt"]["prompt_version"],
     )
+    if "restart" in record:
+        row.update({"restart_state_" + key: value for key, value in record["restart"].items()})
+    return row
 
 
 def neutral_trajectory(payload):
