@@ -20,6 +20,9 @@ def check_dataset(directory, config, sources):
     if manifest.get("schema") == "pacman-backplay-smoke-dataset-v1":
         from .backplay_dataset import check_dataset as check_backplay_dataset
         return check_backplay_dataset(directory, config, sources)
+    if manifest.get("schema") == "pacman-dynamic-bank-dataset-v1":
+        from .dynamic_dataset import check_dataset as check_dynamic_dataset
+        return check_dynamic_dataset(directory, config, sources)
     if (
         manifest.get("schema") != "pacman-dataset-manifest-v1"
         or manifest.get("training_backend") != "slime"
