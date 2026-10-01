@@ -127,3 +127,25 @@ def test_metadata_survives_both_upstream_transport_boundaries():
             isinstance(n, ast.Constant) and n.value == "metadata"
             for n in ast.walk(body)
         )
+
+
+def test_rollout_metric_logging_ignores_metadata_dicts():
+    # log_rollout_data sums every non-ignored list; per-sample metadata dicts
+    # crashed the first 8-GPU smoke before the optimizer step.
+    path = UPSTREAM / "slime/observability/train_metric_utils.py"
+    if not path.is_file():
+        pytest.skip("pinned slime checkout unavailable")
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    body = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "log_rollout_data"
+    )
+    ignored = next(
+        n.value
+        for n in ast.walk(body)
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "ignored_keys" for t in n.targets)
+    )
+    assert isinstance(ignored, ast.Set)
+    assert "metadata" in {e.value for e in ignored.elts if isinstance(e, ast.Constant)}

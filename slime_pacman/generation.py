@@ -42,8 +42,12 @@ def process_request(processor, messages, constraint, max_input_tokens):
         )
     if "pixel_values" not in processed or "image_grid_thw" not in processed:
         raise ValueError("processor did not produce Qwen vision tensors")
+    # mm_token_type_ids is not a Megatron model input: the Qwen3.5-VL plugin rebuilds
+    # MRoPE positions from input_ids and image_grid_thw (upstream slime disables it too).
     mm = {
-        k: v for k, v in processed.items() if k not in {"input_ids", "attention_mask"}
+        k: v
+        for k, v in processed.items()
+        if k not in {"input_ids", "attention_mask", "mm_token_type_ids"}
     }
     for key, value in mm.items():
         if isinstance(value, torch.Tensor):

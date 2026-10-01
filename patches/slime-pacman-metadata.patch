@@ -10,6 +10,19 @@ index bfab7ab..31e8214 100644
                      # Only present when dumping train debug data; lets the loss
                      # snapshot each sample's log_probs keyed by rollout position.
                      *(["partition"] if args.save_debug_train_data is not None else []),
+diff --git a/slime/observability/train_metric_utils.py b/slime/observability/train_metric_utils.py
+index 07ddd93..1e1f7ba 100644
+--- a/slime/observability/train_metric_utils.py
++++ b/slime/observability/train_metric_utils.py
+@@ -177,6 +177,8 @@ def log_rollout_data(
+             "micro_batch_indices",
+             "source_names",
+             "local_raw_reward",
++            # Per-sample train_metadata dicts (BatchBuilder "metadata") are loss inputs, not metrics.
++            "metadata",
+         }
+         per_rollout_mean_keys = {
+             "log_probs",
 diff --git a/slime/rollout/batch_builder.py b/slime/rollout/batch_builder.py
 index 1180da7..533de82 100644
 --- a/slime/rollout/batch_builder.py
@@ -22,3 +35,50 @@ index 1180da7..533de82 100644
                  "prompt",
                  "teacher_log_probs",
              ]:
+diff --git a/slime_plugins/models/qwen3_5_vl.py b/slime_plugins/models/qwen3_5_vl.py
+index cdc1ad7..77bfa2c 100644
+--- a/slime_plugins/models/qwen3_5_vl.py
++++ b/slime_plugins/models/qwen3_5_vl.py
+@@ -214,6 +214,7 @@ class Qwen3_5VLModel(MegatronModule):
+         pixel_values_videos: torch.Tensor | None = None,
+         image_grid_thw: torch.Tensor | None = None,
+         video_grid_thw: torch.Tensor | None = None,
++        mm_token_type_ids: torch.Tensor | None = None,  # HF processor output; MRoPE is rebuilt from input_ids
+         **kwargs,
+     ) -> torch.Tensor:
+         if packed_seq_params is None:
+diff --git a/slime_plugins/models/qwen3_5_vl_utils.py b/slime_plugins/models/qwen3_5_vl_utils.py
+index 26f59d1..6a0fe2e 100644
+--- a/slime_plugins/models/qwen3_5_vl_utils.py
++++ b/slime_plugins/models/qwen3_5_vl_utils.py
+@@ -15,6 +15,11 @@ def get_packed_cp_local_indices(
+     """Map a THD CP rank's local tokens back to the full packed token stream."""
+ 
+     boundaries = [int(value) for value in cu_seqlens]
++    if cp_size == 1:
++        # slice_with_cp leaves sequences unpadded without CP; the layout is the identity.
++        if not boundaries:
++            return torch.empty(0, dtype=torch.long, device=device)
++        return torch.arange(boundaries[0], boundaries[-1], device=device)
+     indices = []
+     for start, end in zip(boundaries[:-1], boundaries[1:], strict=True):
+         sequence_length = end - start
+diff --git a/tests/test_qwen3_5_vl_native.py b/tests/test_qwen3_5_vl_native.py
+index d1c63e0..7e94b3f 100644
+--- a/tests/test_qwen3_5_vl_native.py
++++ b/tests/test_qwen3_5_vl_native.py
+@@ -78,6 +78,14 @@ def test_thd_cp_indices_select_two_chunks_per_packed_sequence():
+     assert rank_1.tolist() == [2, 3, 4, 5, 10, 11, 12, 13]
+ 
+ 
++@pytest.mark.unit
++def test_thd_cp1_indices_accept_odd_unpadded_lengths():
++    # Without CP, slice_with_cp does not pad; odd packed lengths must still map 1:1.
++    indices = get_packed_cp_local_indices([0, 1357, 1408], cp_size=1, cp_rank=0, device=torch.device("cpu"))
++
++    assert indices.tolist() == list(range(1408))
++
++
+ @pytest.mark.unit
+ def test_raw_qkv_loader_is_inverse_of_exporter():
+     hidden_size = 3

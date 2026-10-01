@@ -49,6 +49,7 @@ class Processor:
                 [list(images[0].getpixel((0, 0)))], dtype=torch.float32
             ),
             image_grid_thw=torch.tensor([[1, 2, 2]]),
+            mm_token_type_ids=torch.tensor([[0, 1, 0]]),
         )
 
 
@@ -136,6 +137,12 @@ def test_bad_server_evidence_aborts(damage):
     )
     with pytest.raises(ValueError):
         asyncio.run(generator(messages("red"), CONSTRAINT))
+
+
+def test_mm_token_type_ids_are_not_forwarded_to_training():
+    # Megatron GPTModel.forward rejects this processor output (smoke v7).
+    _, _, mm, _ = process_request(Processor(), messages("red"), CONSTRAINT, 2048)
+    assert set(mm) == {"pixel_values", "image_grid_thw"}
 
 
 def test_history_second_image_and_truncation_are_rejected():

@@ -30,7 +30,7 @@ def build_command(*, slime_root, model, dataset, run_dir, config, updates, resum
         "hf-checkpoint": model,
         "load": resume or model,
         "save": run_dir / "checkpoints",
-        "save-hf": run_dir / "hf-{}",
+        "save-hf": run_dir / "hf-{rollout_id}",
         "save-interval": 1,
         "actor-num-nodes": 1,
         "actor-num-gpus-per-node": 8,
@@ -92,6 +92,11 @@ def build_command(*, slime_root, model, dataset, run_dir, config, updates, resum
             "--colocate",
             "--bf16",
             "--use-distributed-optimizer",
+            # TP=1 full fine-tuning of the 9.4B model on 80 GB GPUs only fits with Adam
+            # state and fp32 master params on the CPU (smoke v8 OOM, v9 succeeded).
+            "--optimizer-cpu-offload",
+            "--overlap-cpu-optimizer-d2h-h2d",
+            "--use-precision-aware-optimizer",
             "--use-rollout-logprobs",
             "--rollout-shuffle",
             "--accumulate-allreduce-grads-in-fp32",
