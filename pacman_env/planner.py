@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 import math
 from typing import Any, Iterable, Mapping
+import weakref
 
 from .actions import Action
 from .env.level import LevelDefinition, load_bundled_level
@@ -145,6 +146,28 @@ def _neighbors(
     actor: str = "pacman",
     use_portals: bool = True,
 ) -> Iterable[tuple[str, Position]]:
+    key = _table_actor(actor)
+    if key is not None:
+        topology = _topology(level)
+        try:
+            return topology.neighbors(key, use_portals, topology.cell(position))
+        except _OffGrid:
+            pass
+    return tuple(_neighbors_generic(level, position, actor=actor, use_portals=use_portals))
+
+
+def _table_actor(actor: str) -> str | None:
+    """Table key for an actor (one table per actor string; unknown actors use the generic path)."""
+    return actor if actor in ("pacman", "ghost", "vulnerable", "eyes") else None
+
+
+def _neighbors_generic(
+    level: LevelDefinition,
+    position: Position,
+    *,
+    actor: str = "pacman",
+    use_portals: bool = True,
+) -> Iterable[tuple[str, Position]]:
     for action in CARDINAL_ACTIONS:
         candidate = _transition(
             level,
@@ -155,6 +178,157 @@ def _neighbors(
         )
         if candidate is not None:
             yield action.value, candidate
+
+
+class _Topology:
+    """Static shortest-path tables for one maze, indexed by cell id ``row * width + col``.
+
+    The maze is static, so each (actor, portal rule) pair gets one BFS per source cell, filled
+    lazily and kept for the process: a distance row plus parent pointers. Routes are rebuilt from
+    the parent pointers of the source's BFS tree, so ties break exactly as the original per-source
+    BFS (``_neighbors`` order U, D, L, R). Pacman (portals) and ghost (no portals) tables are kept
+    apart. Tables are shared across ``LevelDefinition`` objects with the same maze and found by
+    object identity: hashing/comparing a ``LevelDefinition`` (whole tile grid and pellet sets) in
+    ``lru_cache`` keys dominated planner time, because each episode loads a fresh level object.
+    """
+
+    def __init__(self, level: LevelDefinition) -> None:
+        self.width, self.height = level.width, level.height
+        self.size = self.width * self.height
+        self.cells = [Position(r, c) for r in range(self.height) for c in range(self.width)]
+        self._level = level  # only used while filling adjacency/walls lazily
+        self._walls: dict[str, list[bool]] = {}
+        self._adjacency: dict[tuple[str, bool], list[tuple[tuple[str, int], ...]]] = {}
+        self._dist: dict[tuple[str, bool, int], list[int]] = {}
+        self._parent: dict[tuple[str, bool, int], list[int]] = {}
+        self._via: dict[tuple[str, bool, int], list[str]] = {}
+        self._routes: dict[tuple[str, bool, int, int], tuple[str, ...] | None] = {}
+        self._components: dict[int, list[int]] = {}
+
+    def adjacency(self, actor: str, portals: bool) -> list[tuple[tuple[str, int], ...]]:
+        """Per actor string (no assumption that actors share wall rules)."""
+        rows = self._adjacency.get((actor, portals))
+        if rows is None:
+            rows = []
+            for position in self.cells:
+                edges = []
+                for action in CARDINAL_ACTIONS:
+                    nxt = _transition(self._level, position, action, actor=actor, use_portals=portals)
+                    if nxt is not None:
+                        edges.append((action.value, self.cell(nxt)))
+                rows.append(tuple(edges))
+            self._adjacency[(actor, portals)] = rows
+        return rows
+
+    def walls(self, actor: str) -> list[bool]:
+        walls = self._walls.get(actor)
+        if walls is None:
+            walls = self._walls[actor] = [bool(_is_wall(self._level, p, actor=actor)) for p in self.cells]
+        return walls
+
+    def cell(self, position: Position) -> int:
+        row, col = position.row, position.col
+        if not (0 <= row < self.height and 0 <= col < self.width):
+            raise _OffGrid(position)
+        return row * self.width + col
+
+    def _bfs(self, actor: str, portals: bool, source: int) -> None:
+        dist = [-1] * self.size
+        parent = [-1] * self.size
+        via = [""] * self.size
+        dist[source] = 0
+        adjacency = self.adjacency(actor, portals)
+        queue = deque([source])
+        while queue:
+            node = queue.popleft()
+            step = dist[node] + 1
+            for token, nxt in adjacency[node]:
+                if dist[nxt] < 0:
+                    dist[nxt], parent[nxt], via[nxt] = step, node, token
+                    queue.append(nxt)
+        key = (actor, portals, source)
+        self._dist[key], self._parent[key], self._via[key] = dist, parent, via
+
+    def distance_row(self, actor: str, portals: bool, source: int) -> list[int]:
+        key = (actor, portals, source)
+        row = self._dist.get(key)
+        if row is None:
+            self._bfs(actor, portals, source)
+            row = self._dist[key]
+        return row
+
+    def route(self, actor: str, portals: bool, source: int, target: int) -> tuple[str, ...] | None:
+        key = (actor, portals, source, target)
+        if key in self._routes:
+            return self._routes[key]
+        if self.distance_row(actor, portals, source)[target] < 0:
+            result = None
+        else:
+            parent = self._parent[(actor, portals, source)]
+            via = self._via[(actor, portals, source)]
+            tokens: list[str] = []
+            node = target
+            while node != source:
+                tokens.append(via[node])
+                node = parent[node]
+            result = tuple(reversed(tokens))
+        self._routes[key] = result
+        return result
+
+    def neighbors(self, actor: str, portals: bool, source: int) -> tuple[tuple[str, Position], ...]:
+        cells = self.cells
+        return tuple((token, cells[nxt]) for token, nxt in self.adjacency(actor, portals)[source])
+
+    def component_ids(self, blocked: int) -> list[int]:
+        """Pacman connected-component id per cell after removing ``blocked`` (-1 for walls)."""
+        ids = self._components.get(blocked)
+        if ids is None:
+            ids = [-1] * self.size
+            walls = self.walls("pacman")
+            adjacency = self.adjacency("pacman", True)
+            label = 0
+            for origin in range(self.size):
+                if origin == blocked or walls[origin] or ids[origin] >= 0:
+                    continue
+                ids[origin] = label
+                queue = deque([origin])
+                while queue:
+                    node = queue.popleft()
+                    for _, nxt in adjacency[node]:
+                        if nxt != blocked and not walls[nxt] and ids[nxt] < 0:
+                            ids[nxt] = label
+                            queue.append(nxt)
+                label += 1
+            self._components[blocked] = ids
+        return ids
+
+
+class _OffGrid(Exception):
+    """A position outside the tile grid: callers fall back to the generic implementation."""
+
+
+_TOPOLOGY_BY_ID: dict[int, tuple[Any, _Topology]] = {}
+_TOPOLOGY_BY_MAZE: dict[tuple[Any, ...], _Topology] = {}
+
+
+def _topology(level: LevelDefinition) -> _Topology:
+    entry = _TOPOLOGY_BY_ID.get(id(level))
+    if entry is not None and entry[0]() is level:
+        return entry[1]
+    if isinstance(level, LevelDefinition):
+        # A fresh LevelDefinition per episode: share tables across objects of the same maze.
+        maze = (level.width, level.height, level.tiles, level.horizontal_doors, level.vertical_doors)
+        topology = _TOPOLOGY_BY_MAZE.get(maze)
+        if topology is None:
+            topology = _TOPOLOGY_BY_MAZE[maze] = _Topology(level)
+    else:
+        topology = _Topology(level)  # other maze implementations (tests): tables per object
+    try:
+        ref = weakref.ref(level)
+    except TypeError:
+        ref = lambda level=level: level  # noqa: E731 - keep the object alive so its id stays unique
+    _TOPOLOGY_BY_ID[id(level)] = (ref, topology)
+    return topology
 
 
 @lru_cache(maxsize=None)
@@ -171,7 +345,7 @@ def _routes_from(
     routes: dict[Position, tuple[str, ...]] = {start: ()}
     while queue:
         position, route = queue.popleft()
-        for action, candidate in _neighbors(
+        for action, candidate in _neighbors_generic(
             level, position, actor=actor, use_portals=use_portals
         ):
             if candidate in routes:
@@ -190,6 +364,13 @@ def _shortest_path(
     actor: str = "pacman",
     use_portals: bool = True,
 ) -> tuple[str, ...] | None:
+    key = _table_actor(actor)
+    if key is not None:
+        topology = _topology(level)
+        try:
+            return topology.route(key, use_portals, topology.cell(start), topology.cell(target))
+        except _OffGrid:
+            pass
     return _routes_from(
         level,
         start,
@@ -206,6 +387,14 @@ def _distance(
     actor: str = "pacman",
     use_portals: bool = True,
 ) -> int | None:
+    key = _table_actor(actor)
+    if key is not None:
+        topology = _topology(level)
+        try:
+            steps = topology.distance_row(key, use_portals, topology.cell(start))[topology.cell(target)]
+            return None if steps < 0 else steps
+        except _OffGrid:
+            pass
     route = _shortest_path(
         level,
         start,
@@ -242,6 +431,18 @@ def _ghost_distance(
     ghosts: Iterable[_GhostThreat],
     target: Position,
 ) -> int | None:
+    topology = _topology(level)
+    try:
+        # Nearest lethal ghost ETA = min over ghosts of the static ghost-distance table.
+        cell = topology.cell(target)
+        best = None
+        for ghost in ghosts:
+            steps = topology.distance_row("ghost", False, topology.cell(ghost.position))[cell]
+            if steps >= 0 and (best is None or steps < best):
+                best = steps
+        return best
+    except _OffGrid:
+        pass
     distances: list[int] = []
     for ghost in ghosts:
         distance = _distance(
@@ -468,6 +669,13 @@ def _reachable_without_tile(
 ) -> bool:
     if blocked in {start, target}:
         return False
+    topology = _topology(level)
+    try:
+        ids = topology.component_ids(topology.cell(blocked))
+        component = ids[topology.cell(start)]
+        return component >= 0 and component == ids[topology.cell(target)]
+    except _OffGrid:
+        pass
     return any(
         start in component and target in component
         for component in _components_without_tile(level, blocked)
