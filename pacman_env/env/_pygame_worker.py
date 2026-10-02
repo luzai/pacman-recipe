@@ -128,7 +128,11 @@ class _PygameBridge:
             self._boot_started = True
             return
 
-        payload = self._capture(globals_dict)
+        # Game state every logic frame (atomic substeps, death checks); the observation image only
+        # for frames that are emitted. Screenshot + copy + zlib + sha256 on all 16 frames of a step
+        # dominated the step cost. Emitted frames are captured at the same point (after the
+        # original flip, before any further drawing), so their pixels are unchanged.
+        payload = self._capture(globals_dict, include_frame=False)
         state_writer = globals_dict.get("WriteAgentState")
         if callable(state_writer):
             # The original loop normally writes immediately after flip().
@@ -136,6 +140,7 @@ class _PygameBridge:
             # original writer here so the worker-local file matches this frame.
             state_writer()
         if not self._ready_sent:
+            payload["frame"] = self._capture_frame()
             payload.update({"type": "ready", "request_id": 0})
             self._emit(payload)
             self._ready_sent = True
@@ -182,6 +187,7 @@ class _PygameBridge:
             self._pending_request["previous_atomic_state"] = atomic_state
             if self._step_is_complete(self._pending_request, payload["state"]):
                 globals_dict["agentPaused"] = True
+                payload["frame"] = self._capture_frame()
                 payload.update(
                     {
                         "type": "step",
@@ -456,7 +462,18 @@ class _PygameBridge:
             "path_target": [row, col],
         }
 
-    def _capture(self, globals_dict: dict[str, Any]) -> dict[str, Any]:
+    def _capture_frame(self) -> dict[str, Any]:
+        frame = self._pygame.surfarray.array3d(self._pygame.display.get_surface()).swapaxes(0, 1).copy()
+        raw = frame.tobytes(order="C")
+        return {
+            "shape": list(frame.shape),
+            "dtype": str(frame.dtype),
+            "encoding": "zlib+base64",
+            "data": base64.b64encode(zlib.compress(raw, level=1)).decode("ascii"),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        }
+
+    def _capture(self, globals_dict: dict[str, Any], *, include_frame: bool = True) -> dict[str, Any]:
         if (
             globals_dict.get("GHOST_MODE") != self._ghost_mode
             or globals_dict.get("CURRICULUM_ID") != 2
@@ -481,9 +498,6 @@ class _PygameBridge:
         ghosts = globals_dict["ghosts"]
         fruit = globals_dict["thisFruit"]
         tile_ids = globals_dict.get("tileID", {})
-        surface = pygame.display.get_surface()
-        frame = pygame.surfarray.array3d(surface).swapaxes(0, 1).copy()
-        raw = frame.tobytes(order="C")
 
         pellet_id = tile_ids.get("pellet")
         power_id = tile_ids.get("pellet-power")
@@ -548,14 +562,7 @@ class _PygameBridge:
             index: self._path_state(ghosts[index]) for index in range(4)
         }
         fruit_path = self._path_state(fruit)
-        return {
-            "frame": {
-                "shape": list(frame.shape),
-                "dtype": str(frame.dtype),
-                "encoding": "zlib+base64",
-                "data": base64.b64encode(zlib.compress(raw, level=1)).decode("ascii"),
-                "sha256": hashlib.sha256(raw).hexdigest(),
-            },
+        payload = {
             "state": {
                 "row": row,
                 "col": col,
@@ -663,6 +670,9 @@ class _PygameBridge:
                 "open": open_actions,
             },
         }
+        if include_frame:
+            payload["frame"] = self._capture_frame()
+        return payload
 
     def _emit(self, payload: dict[str, Any]) -> None:
         self._protocol_output.write(json.dumps(payload, separators=(",", ":")) + "\n")
