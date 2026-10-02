@@ -91,3 +91,23 @@ def test_restart_rejections_before_rollout(restart_row, damage):
     workflow = make_workflow()
     with pytest.raises(ValueError):
         asyncio.run(workflow.run(row, scripted_actions=[action]))
+
+
+def test_parse_failure_after_a_death_records_the_post_death_lives():
+    # Seed 7, alternating L/R: pacman is caught at step 25 (3 -> 2 lives) with only L/R open.
+    row = make_episode_row(1, split="train", seed=7, action_protocol="direct-open-action-token-v1")
+    with patch("transformers.AutoTokenizer.from_pretrained", return_value=FakeObjectiveTokenizer()):
+        workflow = PacmanImageOnlyWorkflow(
+            env_factory=PygamePacmanEnv, open_action_mask=True,
+            tokenizer_path="test-tokenizer", image_prompt_style="live_state_v3",
+            action_protocol="direct-open-action-token-v1",
+            prompt_version="live-state-direct-action-v3",
+            episode_life_mode="original_three_lives",
+        )
+    asyncio.run(workflow.run(row, scripted_actions=["L", "R"] * 12 + ["L", "U"]))
+    payload = workflow.last_episode
+    death, failure = payload["trajectory"][-2:]
+    assert death["death"] and (death["lives"], death["lives_after_step"]) == (3, 2)
+    assert failure["contract_violation_type"] == "parse_failure"
+    assert (failure["lives"], failure["lives_after_step"], failure["death"]) == (2, 2, False)
+    audit_trajectory(payload)

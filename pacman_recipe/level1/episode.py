@@ -1078,7 +1078,9 @@ class PacmanEpisodeRunner:
                         "death": False,
                         "death_penalty": 0.0,
                         "death_count": int(previous_info.get("death_count", 0)),
-                        "lives": int(previous_info.get("lives", 0)),
+                        # No env step happened: this record starts and ends with the lives the
+                        # previous step ended with (its "lives" is the count before that step).
+                        "lives": int(previous_info.get("lives_after_step", 0)),
                         "lives_after_step": int(
                             previous_info.get("lives_after_step", 0)
                         ),
@@ -1618,9 +1620,12 @@ class PacmanEpisodeRunner:
                     final_info["power_pellets_remaining"]
                 ),
                 "final_score": int(final_info["score"]),
-                "death_count": int(final_info.get("death_count", 0)),
-                "lives": int(final_info.get("lives", 0)),
-                "lives_after_step": int(final_info.get("lives_after_step", 0)),
+                # From the final record: a parse failure adds a record without an env step.
+                "death_count": int((trajectory[-1] if trajectory else final_info).get("death_count", 0)),
+                "lives": int((trajectory[-1] if trajectory else final_info).get("lives", 0)),
+                "lives_after_step": int(
+                    (trajectory[-1] if trajectory else final_info).get("lives_after_step", 0)
+                ),
                 "pygame_mode": int(final_info["pygame_mode"]),
                 "wall_collisions": sum(
                     bool(step["wall_collision"]) for step in trajectory
