@@ -45,3 +45,16 @@ def test_wilson_and_seed_parsing():
     assert es.wilson(0, 0) == [0.0, 0.0]
     assert seed_list("0,1,14,15,16") == [0, 1, 14, 15, 16]
     assert seed_list("72-75,80") == [72, 73, 74, 75, 80]
+
+
+def test_collapse_onto_few_seeds_is_visible_per_seed():
+    seeds = (0, 1, 14, 15, 16)
+    base = rows("true_start", {s: 0.25 for s in seeds})
+    collapsed = rows("true_start", {0: 0.0, 1: 1.0, 14: 1.0, 15: 0.0, 16: 0.0})
+    result = es.compare(base, collapsed, "true_start")
+    assert result["difference"] == pytest.approx(0.15)
+    assert result["regressed_seeds"] == [0, 15, 16]
+    assert result["per_seed_difference"]["1"] == pytest.approx(0.75)
+    within, cluster = result["difference_bootstrap95"], result["seed_cluster_bootstrap95"]
+    assert within[0] > 0 and cluster[0] < 0 < cluster[1]  # resampling seeds exposes the uncertainty
+    assert cluster[1] - cluster[0] > within[1] - within[0]

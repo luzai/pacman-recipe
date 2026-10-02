@@ -87,8 +87,36 @@ def compare(baseline_rows, final_rows, group, seeds=None):
     rate = lambda d: sum(_wins(r).sum() for r in d.values()) / sum(len(r) for r in d.values())
     point = rate(final) - rate(base)
     ci = [float(np.quantile(diff, 0.025)), float(np.quantile(diff, 0.975))]
+    per_seed = {str(s): float(_wins(final[s]).mean() - _wins(base[s]).mean()) for s in sorted(base)}
     return dict(group=group, seeds=sorted(base), baseline=rate(base), final=rate(final), difference=point,
-                difference_bootstrap95=ci, clear_improvement=bool(point >= CLEAR_IMPROVEMENT and ci[0] > 0))
+                difference_bootstrap95=ci, clear_improvement=bool(point >= CLEAR_IMPROVEMENT and ci[0] > 0),
+                # Reported alongside, not part of the pre-registered rule: a policy that collapses onto a few
+                # seeds can raise the pooled rate while most seeds regress, and the within-seed bootstrap
+                # above treats the seed set as fixed.
+                per_seed_difference=per_seed,
+                regressed_seeds=sorted(int(s) for s, d in per_seed.items() if d < 0),
+                seed_cluster_bootstrap95=_seed_cluster_ci(base, final))
+
+
+def _seed_cluster_ci(base, final, resamples=BOOTSTRAP_RESAMPLES):
+    """Resample seeds (with their paired baseline/final episodes) and episodes within each seed.
+
+    Rewards are binary, so resampling a seed's n episodes with replacement is a Binomial(n, p_hat) draw.
+    """
+    rng = np.random.default_rng(BOOTSTRAP_SEED + 1)
+    seeds = sorted(base)
+    stats = []
+    for rows in (base, final):
+        wins = [_wins(rows[s]) for s in seeds]
+        if any(not np.isin(w, (0.0, 1.0)).all() for w in wins):
+            raise ValueError("seed-cluster bootstrap expects binary rewards")
+        stats.append((np.array([len(w) for w in wins]), np.array([w.mean() for w in wins])))
+    picked = rng.integers(0, len(seeds), size=(resamples, len(seeds)))
+    rates = []
+    for n, p in stats:
+        rates.append(rng.binomial(n[picked], p[picked]).sum(axis=1) / n[picked].sum(axis=1))
+    diffs = rates[1] - rates[0]
+    return [float(np.quantile(diffs, 0.025)), float(np.quantile(diffs, 0.975))]
 
 
 def main():
