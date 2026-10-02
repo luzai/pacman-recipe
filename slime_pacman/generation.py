@@ -55,6 +55,19 @@ def process_request(processor, messages, constraint, max_input_tokens):
     return prompt, ids[0].tolist(), mm, image
 
 
+def _image_url(messages):
+    urls = [
+        p["image_url"]["url"]
+        for m in messages
+        if isinstance(m["content"], list)
+        for p in m["content"]
+        if p["type"] == "image_url"
+    ]
+    if len(urls) != 1 or not urls[0].startswith("data:image/png;base64,"):
+        raise ValueError("Pacman request requires exactly one inline PNG image")
+    return urls[0]
+
+
 class SGLangGenerator:
     def __init__(self, *, processor, endpoint, client, max_input_tokens=2048):
         self.processor, self.endpoint, self.client = processor, endpoint, client
@@ -63,16 +76,19 @@ class SGLangGenerator:
 
     async def __call__(self, messages, constraint):
         import base64
-        from slime.utils.processing_utils import encode_image_for_rollout_engine
 
         prompt, ids, mm, image = process_request(
             self.processor, messages, constraint, self.max_input_tokens
         )
+        image_url = _image_url(messages)
         support = constraint.allowed_token_ids
         body = {
             "rid": uuid.uuid4().hex,
             "text": prompt,
-            "image_data": [encode_image_for_rollout_engine(image)],
+            # Send the episode's own lossless RGB PNG (encode_png) as is. slime's
+            # encode_image_for_rollout_engine would re-encode the same pixels at
+            # level 6 (~3 ms/decision); SGLang decodes either to identical pixels.
+            "image_data": [image_url],
             "sampling_params": {
                 "temperature": 1.0,
                 "top_p": 1.0,
@@ -126,14 +142,7 @@ class SGLangGenerator:
         completion = constraint.code_for_option(constraint.option_for_tokens([action]))
         if result.get("text") != completion:
             raise ValueError("SGLang decoded text differs from exact selected token")
-        image_part = next(
-            p
-            for m in messages
-            if isinstance(m["content"], list)
-            for p in m["content"]
-            if p["type"] == "image_url"
-        )
-        raw = base64.b64decode(image_part["image_url"]["url"].split(",", 1)[1])
+        raw = base64.b64decode(image_url.split(",", 1)[1])
         return Decision(
             prompt,
             ids,

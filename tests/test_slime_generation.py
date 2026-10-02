@@ -253,3 +253,25 @@ def test_real_upstream_conversion_keeps_support_and_episode_weights():
     assert data["rollout_mask_sums"][:3] == [2, 2, 1]
     assert data["rewards"][0] == data["rewards"][1] == -data["rewards"][2]
     assert all(m == [0] for m in data["loss_masks"][49:])
+
+
+def test_request_sends_the_episode_png_unchanged():
+    import numpy as np
+    from pacman_recipe.level1.prompts import encode_png
+
+    rng = np.random.default_rng(0)
+    frame = rng.integers(0, 256, size=(40, 36, 3), dtype=np.uint8)
+    url = "data:image/png;base64," + base64.b64encode(encode_png(frame)).decode()
+    msgs = messages("red")
+    msgs[1]["content"][1]["image_url"]["url"] = url
+    client = Client()
+    generator = SGLangGenerator(processor=Processor(), endpoint="http://localhost/generate", client=client)
+    asyncio.run(generator(msgs, CONSTRAINT))
+    (sent,) = client.requests[0]["image_data"]
+    assert sent == url  # no decode/re-encode round trip
+    decoded = np.asarray(Image.open(BytesIO(base64.b64decode(sent.split(",", 1)[1]))).convert("RGB"))
+    assert np.array_equal(decoded, frame)
+    bad = messages("red")
+    bad[1]["content"][1]["image_url"]["url"] = "data:image/jpeg;base64,AAAA"
+    with pytest.raises(ValueError, match="inline PNG"):
+        asyncio.run(generator(bad, CONSTRAINT))
