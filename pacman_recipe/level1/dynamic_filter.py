@@ -15,7 +15,22 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-LOGGER = logging.getLogger(__name__)
+class _NamedLogger:
+    """Resolve the logger by name on every call.
+
+    AReaL's logging setup can replace ``logging.Logger.manager``; a logger object captured at import
+    time then is no longer the one registered under this name, so handlers attached by name (for
+    example ``assertLogs``) never see its records.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getattr__(self, attribute: str):
+        return getattr(logging.getLogger(self._name), attribute)
+
+
+LOGGER = _NamedLogger(__name__)
 
 # Episode returns are deterministic given a trajectory, so a genuinely diverse
 # group never lands inside this window; it only absorbs float round-trip noise.
