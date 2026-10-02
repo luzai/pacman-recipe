@@ -430,11 +430,14 @@ def encode_png(image: np.ndarray) -> bytes:
     except ImportError as exc:
         raise RuntimeError("Pillow is required for image-only rollouts") from exc
     buffer = BytesIO()
+    # Level 1 (user decision 2026-10-02): lossless like 9, ~2.6 ms instead of ~14 ms per 400x336 frame
+    # (9 KB vs 5 KB). These bytes stay in process; slime re-encodes for SGLang. The level changes PNG bytes
+    # and their sha256, not pixels. legacy_prompts_v1 keeps level 9 for frozen evidence.
     Image.fromarray(image, mode="RGB").save(
         buffer,
         format="PNG",
         optimize=False,
-        compress_level=9,
+        compress_level=1,
     )
     return buffer.getvalue()
 
