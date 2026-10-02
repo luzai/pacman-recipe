@@ -19,6 +19,7 @@ from pacman_recipe.level1.contracts import (
     write_json_new,
 )
 from pacman_recipe.level1.episode import ModelTurn, PacmanEpisodeRunner
+from pacman_recipe.level1.trajectories import TrajectoryAuditError
 from .config import load_config, runner_options
 from .generation import SGLangGenerator
 from .grouping import binary_reward
@@ -257,6 +258,33 @@ def write_death_candidates(path, boundaries, episode, source):
     return path
 
 
+AUDIT_RETRIES = 2
+
+
+def dump_audit_failure(record, exc, attempt):
+    """Write a rejected episode (trajectory audit failure) under $PACMAN_RUN_DIR/audit-failures/."""
+    logging.getLogger(__name__).warning(
+        "episode %s failed its trajectory audit (attempt %d): %s", record.get("id"), attempt, exc
+    )
+    run_dir = os.environ.get("PACMAN_RUN_DIR")
+    if not run_dir:
+        return None
+    path = Path(run_dir) / "audit-failures" / f"{record.get('id')}-{uuid.uuid4().hex[:12]}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = {"record_id": record.get("id"), "seed": (record.get("environment") or {}).get("seed"),
+            "attempt": attempt, "error": str(exc), "payload": exc.payload}
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(body, default=str))
+    os.replace(temporary, path)
+    return path
+
+
+def audit_failure_count():
+    run_dir = os.environ.get("PACMAN_RUN_DIR")
+    folder = Path(run_dir) / "audit-failures" if run_dir else None
+    return len(list(folder.glob("*.json"))) if folder is not None and folder.is_dir() else 0
+
+
 async def _collect_episode(
     record, *, endpoint, tokenizer, processor, config, expected_sources, version, capture=None
 ):
@@ -282,11 +310,28 @@ async def _collect_episode(
             expected_sources=expected_sources,
             pacman_python_root=pacman_python_root(),
         )
-        boundaries = None
-        if capture is not None:
-            boundaries = deque(maxlen=RING_SIZE)
-            runner.decision_boundary_sink = boundaries.append
-        episode = await runner.collect(empty_weight_version=version)
+        for attempt in range(AUDIT_RETRIES + 1):
+            boundaries = None
+            if capture is not None:
+                boundaries = deque(maxlen=RING_SIZE)
+                runner.decision_boundary_sink = boundaries.append
+            try:
+                episode = await runner.collect(empty_weight_version=version)
+                break
+            except TrajectoryAuditError as exc:
+                # A rejected episode never reaches training. Keep it for diagnosis and play a fresh
+                # episode from the same start so the group keeps its size; give up after a few.
+                dump_audit_failure(record, exc, attempt)
+                if attempt == AUDIT_RETRIES:
+                    raise
+                runner = EpisodeRunner(
+                    record,
+                    tokenizer=tokenizer,
+                    generate=generator,
+                    config=config,
+                    expected_sources=expected_sources,
+                    pacman_python_root=pacman_python_root(),
+                )
     if capture is not None:
         write_death_candidates(capture["path"], boundaries, episode, capture["source"])
     return episode
@@ -423,6 +468,7 @@ def log_rollout(rollout_id, args, samples, rollout_extra_metrics, rollout_time):
             )
             / len(groups),
             "rollout/episodes": len(episodes),
+            "rollout/audit_failures_total": audit_failure_count(),
             "rollout/seconds": rollout_time,
             "rollout/step": rollout_id,
         }

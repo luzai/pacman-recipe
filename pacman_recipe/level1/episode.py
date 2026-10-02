@@ -48,7 +48,7 @@ from .prompts import (
     text_sha256,
 )
 from .rewards import RewardConfig, shape_reward
-from .trajectories import audit_trajectory, write_trajectory
+from .trajectories import TrajectoryAuditError, audit_trajectory, write_trajectory
 from .token_constraints import (
     EDWARD_OPTION_CONSTRAINT,
     ObjectiveParseError,
@@ -62,7 +62,22 @@ ACTION_MASK_BIT = {
     action: 1 << index for index, action in enumerate(MOVEMENT_ACTIONS)
 }
 OPPOSITE_ACTION = {"U": "D", "D": "U", "L": "R", "R": "L"}
-LOGGER = logging.getLogger(__name__)
+class _NamedLogger:
+    """Resolve the logger by name on every call.
+
+    AReaL's logging setup can replace ``logging.Logger.manager``; a logger object captured at import
+    time then is no longer the one registered under this name, so handlers attached by name (for
+    example ``assertLogs``) never see its records.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getattr__(self, attribute: str):
+        return getattr(logging.getLogger(self._name), attribute)
+
+
+LOGGER = _NamedLogger(__name__)
 
 # vLLM (observed on 0.22.1) occasionally drops the `allowed_token_ids`
 # sampling mask for a single request under high concurrency + multimodal
@@ -1624,7 +1639,12 @@ class PacmanEpisodeRunner:
                 "truncated": bool(trajectory[-1]["truncated"]),
                 "trajectory": trajectory,
             }
-            audit_trajectory(payload)
+            try:
+                audit_trajectory(payload)
+            except TrajectoryAuditError:
+                raise
+            except ValueError as exc:
+                raise TrajectoryAuditError(str(exc), payload) from exc
             self._episode_payload.set(payload)
             self.last_episode = payload
             self._record_metrics(payload)

@@ -723,6 +723,14 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
                 raise ValueError("direct action violates the open-action mask")
 
 
+class TrajectoryAuditError(ValueError):
+    """An episode failed its trajectory audit; ``payload`` is the rejected episode for diagnosis."""
+
+    def __init__(self, message: str, payload: dict):
+        super().__init__(message)
+        self.payload = payload
+
+
 def audit_trajectory(payload: Mapping[str, Any]) -> None:
     missing = REQUIRED_ENV_FIELDS - payload.keys()
     if missing:
@@ -923,7 +931,11 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
                 raise ValueError("trajectory lives cannot be negative")
             expected_lives_after = max(0, lives - int(death))
             if lives_after != expected_lives_after:
-                raise ValueError("trajectory lives do not reconcile with death event")
+                raise ValueError(
+                    "trajectory lives do not reconcile with death event "
+                    f"(step {index}: lives={lives} lives_after_step={lives_after} death={death} "
+                    f"events={step.get('events')} mode_terminal={step.get('terminal_reason')})"
+                )
         if payload.get("action_constraint") == EDWARD_OPTION_CONSTRAINT:
             option_missing = {
                 "model_called",
