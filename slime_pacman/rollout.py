@@ -215,11 +215,20 @@ def _worker_tokenizer_and_processor(hf_checkpoint):
 
 def _multimodal_to_numpy(decisions):
     # Copy tensors by value through the result pipe; torch's default tensor pickling
-    # would pass one file descriptor per storage (thousands per rollout).
+    # would pass one file descriptor per storage (thousands per rollout). numpy has no
+    # bfloat16: such tensors travel as their int16 bit pattern, tagged.
+    import torch
+
+    def to_numpy(value):
+        if not hasattr(value, "numpy"):
+            return value
+        if value.dtype == torch.bfloat16:
+            return ("bfloat16", value.view(torch.int16).numpy())
+        return value.numpy()
+
     for decision in decisions:
         decision.multimodal_train_inputs = {
-            key: value.numpy() if hasattr(value, "numpy") else value
-            for key, value in decision.multimodal_train_inputs.items()
+            key: to_numpy(value) for key, value in decision.multimodal_train_inputs.items()
         }
 
 
@@ -227,10 +236,14 @@ def _multimodal_to_torch(decisions):
     import numpy
     import torch
 
+    def to_torch(value):
+        if isinstance(value, tuple) and len(value) == 2 and value[0] == "bfloat16":
+            return torch.from_numpy(value[1]).view(torch.bfloat16)
+        return torch.from_numpy(value) if isinstance(value, numpy.ndarray) else value
+
     for decision in decisions:
         decision.multimodal_train_inputs = {
-            key: torch.from_numpy(value) if isinstance(value, numpy.ndarray) else value
-            for key, value in decision.multimodal_train_inputs.items()
+            key: to_torch(value) for key, value in decision.multimodal_train_inputs.items()
         }
 
 

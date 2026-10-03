@@ -52,6 +52,10 @@ def process_request(processor, messages, constraint, max_input_tokens):
     for key, value in mm.items():
         if isinstance(value, torch.Tensor):
             mm[key] = value.cpu()
+    # The vision tower casts pixel_values to its bf16 dtype before anything else
+    # (slime_plugins/models/qwen3_5_vl.py), so casting here hands it the same tensor
+    # and halves the 12.9 MB each decision carries to training.
+    mm["pixel_values"] = mm["pixel_values"].to(torch.bfloat16)
     return prompt, ids[0].tolist(), mm, image
 
 

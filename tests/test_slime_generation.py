@@ -139,6 +139,19 @@ def test_bad_server_evidence_aborts(damage):
         asyncio.run(generator(messages("red"), CONSTRAINT))
 
 
+def test_pixel_values_reach_training_as_the_vision_towers_bf16_input():
+    # The vision tower's first step is values.to(bf16); the cast moved to the client must
+    # give it the same tensor.
+    processor = Processor()
+    _, _, mm, image = process_request(processor, messages("red"), CONSTRAINT, 2048)
+    from pacman_recipe.level1.image_transport import pil_and_chat_messages
+    image, chat = pil_and_chat_messages(messages("red"))
+    prompt = processor.apply_chat_template(chat, tokenize=False, add_generation_prompt=True, enable_thinking=False)
+    raw = processor(text=[prompt], images=[image], return_tensors="pt", truncation=False)["pixel_values"]
+    assert raw.dtype == torch.float32 and mm["pixel_values"].dtype == torch.bfloat16
+    assert torch.equal(mm["pixel_values"], raw.to(torch.bfloat16))
+
+
 def test_mm_token_type_ids_are_not_forwarded_to_training():
     # Megatron GPTModel.forward rejects this processor output (smoke v7).
     _, _, mm, _ = process_request(Processor(), messages("red"), CONSTRAINT, 2048)

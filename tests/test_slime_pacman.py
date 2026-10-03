@@ -325,19 +325,22 @@ def _vision_decision(pixels, grid):
                     {"pixel_values": pixels, "image_grid_thw": grid}, "a" * 64, [-0.5])
 
 
-def test_worker_multimodal_transfer_is_bit_exact():
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_worker_multimodal_transfer_is_bit_exact(dtype):
     import pickle
     from slime_pacman.rollout import EpisodeResult, _multimodal_to_numpy, _multimodal_to_torch
 
-    pixels = torch.randn(7, 1536, generator=torch.Generator().manual_seed(0))
+    pixels = torch.randn(7, 1536, generator=torch.Generator().manual_seed(0)).to(dtype)
     grid = torch.tensor([[1, 2, 4]])
     episode = EpisodeResult(1.0, [_vision_decision(pixels.clone(), grid.clone())], "v0", None, "all_normal_pellets")
     _multimodal_to_numpy(episode.decisions)
-    assert all(isinstance(v, np.ndarray) for v in episode.decisions[0].multimodal_train_inputs.values())
+    sent = episode.decisions[0].multimodal_train_inputs
+    assert isinstance(sent["image_grid_thw"], np.ndarray)
+    assert isinstance(sent["pixel_values"], np.ndarray if dtype == torch.float32 else tuple)
     received = pickle.loads(pickle.dumps(episode))
     _multimodal_to_torch(received.decisions)
     mm = received.decisions[0].multimodal_train_inputs
-    assert mm["pixel_values"].dtype == torch.float32 and torch.equal(mm["pixel_values"], pixels)
+    assert mm["pixel_values"].dtype == dtype and torch.equal(mm["pixel_values"], pixels)
     assert mm["image_grid_thw"].dtype == torch.int64 and torch.equal(mm["image_grid_thw"], grid)
 
 
