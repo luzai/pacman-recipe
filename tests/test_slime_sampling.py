@@ -4,9 +4,45 @@ from types import SimpleNamespace
 
 import pytest
 
-from slime_pacman.sampling import generate_rollout, is_zero_variance, resample_slots
+from slime_pacman.sampling import generate_rollout, is_zero_variance, resample_slots, select_start_records
 
 MIXED, WIN, LOSS = [1.0] * 6 + [0.0] * 6, [1.0] * 12, [0.0] * 12
+
+
+def test_fixed_starts_ignore_resampling_cursor_and_epoch_shuffle():
+    class Dataset:
+        samples = [SimpleNamespace(metadata={"episode_record": {"id": s}}) for s in "ABCD"]
+
+        def __len__(self):
+            return len(self.samples)
+
+    def get_samples(n):
+        # A cursor crossing shuffled epochs can return A,A,B,C.
+        return [[SimpleNamespace(metadata={"episode_record": {"id": s}})] for s in "AABC"[:n]]
+
+    source = SimpleNamespace(dataset=Dataset(), get_samples=get_samples)
+    for _ in range(4):
+        source.get_samples(3)  # Simulate template allocation for retry rounds.
+        assert {r["id"] for r in select_start_records(source, 4)} == set("ABCD")
+        source.dataset.samples.reverse()
+
+
+def test_fixed_starts_reject_duplicate_dataset_rows():
+    class Dataset:
+        samples = [SimpleNamespace(metadata={"episode_record": {"id": "A"}})] * 4
+
+        def __len__(self):
+            return 4
+
+    with pytest.raises(ValueError, match="duplicate"):
+        select_start_records(SimpleNamespace(dataset=Dataset()), 4)
+
+
+def test_larger_dataset_keeps_source_selection():
+    source = SimpleNamespace(dataset=list(range(8)), get_samples=lambda n: [
+        [SimpleNamespace(metadata={"episode_record": {"id": s}})] for s in "BCDE"[:n]
+    ])
+    assert [r["id"] for r in select_start_records(source, 4)] == list("BCDE")
 
 
 def group(index, rewards, decisions=2):

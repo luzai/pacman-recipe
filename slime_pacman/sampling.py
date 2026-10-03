@@ -141,6 +141,24 @@ def check_supported(args):
         raise ValueError(f"zero-variance resampling replaces these rollout options: {unsupported}")
 
 
+def select_start_records(data_source, count):
+    """Cover every start when the fixed dataset fits exactly one update.
+
+    Resampling consumes the same source cursor used to allocate sample IDs.
+    Reading starts from that cursor can cross shuffled epoch boundaries and
+    repeat or omit fixed states. Select the complete dataset independently.
+    Larger datasets keep their ordinary rotating selection behavior.
+    """
+    dataset = getattr(data_source, "dataset", None)
+    if dataset is not None and len(dataset) == count:
+        records = [sample.metadata["episode_record"] for sample in dataset.samples]
+        if len({record["id"] for record in records}) != count:
+            raise ValueError("fixed-start dataset contains duplicate episode records")
+        return records
+    starts = data_source.get_samples(count)
+    return [_episodes(group)[0][0].metadata["episode_record"] for group in starts]
+
+
 def generate_rollout(args, rollout_id, data_source, evaluation=False):
     from slime.rollout import sglang_rollout
     from slime.utils.async_utils import run
@@ -150,8 +168,7 @@ def generate_rollout(args, rollout_id, data_source, evaluation=False):
     check_supported(args)
 
     async def go():
-        starts = data_source.get_samples(args.rollout_batch_size)
-        records = [_episodes(group)[0][0].metadata["episode_record"] for group in starts]
+        records = select_start_records(data_source, args.rollout_batch_size)
         run_dir = os.environ.get("PACMAN_RUN_DIR")
         log_path = Path(run_dir) / "resampling" / f"rollout-{rollout_id:04d}.json" if run_dir else None
         return await rollout_slots(args, rollout_id, data_source.get_samples, records, log_path)

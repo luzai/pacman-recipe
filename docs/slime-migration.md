@@ -188,3 +188,14 @@ python -m pytest tests/ -x
 本轮以状态覆盖和完整影响报告为终点；输入合同失败直接停止。结合加权 clipping、loss
 和梯度影响判断是否值得进入单次更新诊断，不以最大 ratio 或逐 bit 相等作为唯一依据。
 1-update/保存/同步/恢复仍单独验收；本轮不自动放行长训练。
+
+## 固定起点实验的补采样覆盖
+
+使用 `slime_pacman.sampling.generate_rollout` 时，若静态数据集行数等于
+`rollout_batch_size`，每次更新从数据集全部行选取起点，每个起点恰好一组。
+补采样仍从同一起点重玩，并通过数据源分配新的 sample/group ID，但数据源游标
+不能决定下一次更新的起点覆盖。否则跨 shuffle epoch 时可能重复或遗漏起点。
+这种完整覆盖要求数据集的 episode record ID 唯一；重复 ID 会直接报错。
+更大数据集保留原有轮换选择，动态 bank 使用独立 curriculum 入口。
+
+训练胜率含零方差组筛选和补采样，不代替每个固定起点的独立评估。
