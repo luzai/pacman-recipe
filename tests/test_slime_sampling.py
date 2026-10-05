@@ -1,12 +1,93 @@
 import asyncio
+import ast
+import copy
+from pathlib import Path
 import random
 from types import SimpleNamespace
 
 import pytest
 
-from slime_pacman.sampling import generate_rollout, is_zero_variance, resample_slots, select_start_records
+from slime_pacman.sampling import (
+    _with_record, generate_rollout, get_sample_groups, is_zero_variance,
+    resample_slots, select_start_records,
+)
 
 MIXED, WIN, LOSS = [1.0] * 6 + [0.0] * 6, [1.0] * 12, [0.0] * 12
+
+
+def upstream_source(records):
+    # Execute the actual pinned allocation method without importing GPU dependencies.
+    path = Path(__file__).resolve().parents[2] / "slime/slime/rollout/data_source.py"
+    tree = ast.parse(path.read_text())
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "RolloutDataSource")
+    method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "get_samples")
+    namespace = {"copy": copy, "Sample": SimpleNamespace}
+    exec(compile(ast.Module(body=[method], type_ignores=[]), str(path), "exec"), namespace)
+
+    class Dataset:
+        def __init__(self):
+            self.samples = [SimpleNamespace(metadata={"episode_record": r}) for r in records]
+
+        def __len__(self):
+            return len(self.samples)
+
+        def shuffle(self, epoch):
+            self.samples.reverse()
+
+    class Source:
+        get_samples = namespace["get_samples"]
+
+    source = Source()
+    source.args = SimpleNamespace(n_samples_per_prompt=12, rollout_shuffle=True)
+    source.dataset = Dataset()
+    source.epoch_id = source.sample_offset = source.sample_index = source.sample_group_index = 0
+    return source
+
+
+def test_single_start_uses_fresh_upstream_ids_across_updates_and_retry_rounds():
+    source = upstream_source([{"id": "true-start-29", "seed": 29}])
+    all_indices, all_groups = [], []
+    for _ in range(2):
+        records = select_start_records(source, 4)
+        assert [r["id"] for r in records] == ["true-start-29"] * 4
+        attempts = {s: 0 for s in range(4)}
+
+        async def launch(slots):
+            groups = get_sample_groups(source, len(slots))
+            out = []
+            for slot, template in zip(slots, groups):
+                g = _with_record(template, records[slot])
+                rewards = LOSS if slot == 1 and attempts[slot] == 0 else MIXED
+                attempts[slot] += 1
+                for sample, reward in zip(g, rewards):
+                    sample.reward = reward
+                    assert sample.metadata["episode_record"] == records[slot]
+                    all_indices.append(sample.index)
+                all_groups.append(g[0].group_index)
+                out.append(g)
+            return out
+
+        kept, dropped, stats, _ = asyncio.run(resample_slots(4, launch, 4, random.Random(0)))
+        assert len(kept) == 4 and sum(map(len, kept)) == 48
+        assert len(dropped) == 1 and stats["rounds"] == 2
+        assert attempts == {0: 1, 1: 2, 2: 1, 3: 1}
+    assert all_indices == list(range(120))
+    assert all_groups == list(range(10))
+    assert source.sample_offset <= len(source.dataset)
+
+
+def test_allocating_four_unique_starts_keeps_upstream_behavior():
+    source = upstream_source([{"id": s} for s in "ABCD"])
+    groups = get_sample_groups(source, 4)
+    assert [g[0].metadata["episode_record"]["id"] for g in groups] == list("ABCD")
+    assert [g[0].group_index for g in groups] == list(range(4))
+
+
+def test_sample_allocation_rejects_empty_or_underfilled_source():
+    with pytest.raises(ValueError, match="nonempty"):
+        get_sample_groups(SimpleNamespace(dataset=[]), 4)
+    with pytest.raises(RuntimeError, match="requested groups"):
+        get_sample_groups(SimpleNamespace(get_samples=lambda n: []), 4)
 
 
 def test_fixed_starts_ignore_resampling_cursor_and_epoch_shuffle():

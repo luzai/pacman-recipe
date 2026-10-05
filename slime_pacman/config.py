@@ -2,6 +2,7 @@
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import math
 
 import yaml
 
@@ -20,8 +21,14 @@ class PacmanConfig:
     validation_seed_count: int = 4
     updates: int = 50
     learning_rate: float = 5e-7
+    success_speed_bonus: float = 0.0
+    edward_fallback_mode: str = "refuse"
 
     def __post_init__(self):
+        if self.edward_fallback_mode not in {"refuse", "risk_ranked"}:
+            raise ValueError("unsupported Edward fallback mode")
+        if not math.isfinite(self.success_speed_bonus) or not 0 <= self.success_speed_bonus <= 0.1:
+            raise ValueError("success_speed_bonus must be finite and between 0 and 0.1")
         if self.group_size != 12 or self.groups_per_update != 4:
             raise ValueError("C2 requires 12 episodes/group and 4 groups/update")
         if self.temperature != 0.7 or self.clip != 0.2:
@@ -70,7 +77,7 @@ def load_config(path):
 def runner_options(config: PacmanConfig):
     return dict(
         edward_options=True,
-        edward_fallback_mode="refuse",
+        edward_fallback_mode=config.edward_fallback_mode,
         enable_thinking=False,
         image_prompt_style="live_state_v3",
         prompt_version="edward-option-code-v2",

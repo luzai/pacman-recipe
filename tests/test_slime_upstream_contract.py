@@ -40,7 +40,12 @@ def load_body(relative, name, mpu):
     return namespace[name]
 
 
-def test_actual_causal_slice_and_episode_reducer_match_gradient_oracle(monkeypatch):
+@pytest.mark.parametrize("clip", [0.2, 0.05])
+def test_actual_causal_slice_and_episode_reducer_match_gradient_oracle(monkeypatch, clip):
+    if clip == 0.05:
+        monkeypatch.setenv("PACMAN_EXPERIMENTAL_PPO_CLIP", "0.05")
+    else:
+        monkeypatch.delenv("PACMAN_EXPERIMENTAL_PPO_CLIP", raising=False)
     mpu = SimpleNamespace(
         get_context_parallel_world_size=lambda: 1,
         get_tensor_model_parallel_world_size=lambda: 1,
@@ -61,7 +66,11 @@ def test_actual_causal_slice_and_episode_reducer_match_gradient_oracle(monkeypat
         use_rollout_logprobs=True,
         calculate_per_token_loss=False,
         rollout_temperature=0.7,
-        eps_clip=0.2,
+        eps_clip=clip,
+        num_steps_per_rollout=1,
+        global_batch_size=48,
+        rollout_batch_size=4,
+        n_samples_per_prompt=12,
     )
     # Episode 0: one decision. Episode 1: two decisions. Last sample is padding.
     batch = dict(
@@ -99,14 +108,28 @@ def test_actual_causal_slice_and_episode_reducer_match_gradient_oracle(monkeypat
             for position, action in ((1, 1), (5, 0), (8, 1))
         ]
     )
-    terms = clipped_policy_terms(
-        selected, torch.full((3,), -0.7), torch.tensor([1.0, -1.0, -1.0])
-    )
+    # Independent first-step oracle: detached IS weight times REINFORCE
+    # gradient. PPO ratio is one; the surrogate value uses exp(lp-lp.detach()).
+    weights = (selected.detach() + .7).exp().clamp(max=2)
+    terms = -weights * torch.tensor([1.0, -1.0, -1.0]) * (selected-selected.detach()).exp()
     oracle = (terms[0] + terms[1:].mean()) / 2
     oracle.backward()
     torch.testing.assert_close(loss / 2, oracle)
     torch.testing.assert_close(actual_grad, reference.grad)
     assert actual_grad[0, 10:].count_nonzero() == 0
+
+
+def test_experimental_clip_requires_matching_explicit_declaration(monkeypatch):
+    from slime_pacman.probability import validate_policy_clip
+    args = SimpleNamespace(rollout_temperature=0.7, eps_clip=0.05, eps_clip_high=0.05)
+    monkeypatch.delenv("PACMAN_EXPERIMENTAL_PPO_CLIP", raising=False)
+    with pytest.raises(ValueError):
+        validate_policy_clip(args)
+    monkeypatch.setenv("PACMAN_EXPERIMENTAL_PPO_CLIP", "0.05")
+    validate_policy_clip(args)
+    args.eps_clip_high = 0.2
+    with pytest.raises(ValueError):
+        validate_policy_clip(args)
 
 
 def test_metadata_survives_both_upstream_transport_boundaries():

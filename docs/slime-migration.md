@@ -198,4 +198,68 @@ python -m pytest tests/ -x
 这种完整覆盖要求数据集的 episode record ID 唯一；重复 ID 会直接报错。
 更大数据集保留原有轮换选择，动态 bank 使用独立 curriculum 入口。
 
+单开局 overfit 可以用只含一条记录的数据集。该记录分配到四个独立组，
+episode record ID 保持相同，sample/group ID 仍由 slime 分别生成。
+分配请求按数据集长度分块，避免上游仅跨一次 epoch 时取不满四组；
+任何取样不足立即报错。不要复制四条同 ID 的数据行来模拟此模式。
+
 训练胜率含零方差组筛选和补采样，不代替每个固定起点的独立评估。
+# Experimental PPO clip control
+
+The default C2 loss still requires symmetric clip 0.2 and temperature 0.7.
+For the declared AReaL comparison only, set `PACMAN_EXPERIMENTAL_PPO_CLIP=0.05`
+and both `--eps-clip 0.05 --eps-clip-high 0.05`. The loss rejects a missing,
+unsupported, or mismatched declaration. The dataset C2 template retains clip
+0.2; record the effective training override in the experiment manifest.
+This does not reproduce AReaL's proximal KL.
+
+## Experimental legal-action regularization
+
+Default training keeps both coefficients zero. Single-start controls may enable
+one declared regularizer at a time:
+
+- Entropy: `PACMAN_EXPERIMENTAL_ENTROPY_COEF=0.01`, `--entropy-coef 0.01`.
+  The loss subtracts the entropy of the legal-action distribution.
+- Frozen-reference KL: `PACMAN_EXPERIMENTAL_KL_COEF=0.01`, `--use-kl-loss`,
+  `--kl-loss-coef 0.01 --kl-coef 0`, `--ref-load /model`, and
+  `--custom-megatron-init-path slime_pacman.reference_policy.install`.
+  `/model` must be the same clean initial model, with no reference update interval.
+  The adapter computes exact `KL(actor || reference)` on the same legal support
+  and temperature, with detached reference probabilities. Native full-vocabulary
+  reference log probabilities are insufficient for this contract.
+  The launcher passes an explicit reference actor subclass through slime's
+  `actor_cls` factory argument before Ray captures the class. Worker initialization
+  installs batch transport only; changing an imported actor class after Ray has
+  serialized it does not reliably change the running actor's methods.
+
+Both terms use the policy loss's episode reduction. Only static microbatch1 and
+TP=PP=CP=1 are supported for the reference hook. The reference backup needs extra
+CPU memory and a forward pass; verify the first real GPU update and frozen model
+identity before accepting a run. Coefficient0.01 is an experimental value.
+
+## Single-update decoupled PPO with TIS
+
+The custom loss now separates the PPO ratio `current / old` from the detached
+sampling correction `old / behavior`. Both actor probabilities use the same
+legal support, FP32 normalization and temperature0.7; behavior probabilities
+come from the actual SGLang rollout. The per-decision correction is
+`exp(min(log_p_old - log_p_behavior, log(2)))`: upper truncation at2,
+no lower clipping, no batch normalization and no MIS sample rejection.
+This bounded estimator trades bias for reduced variance;2 is a starting choice,
+not an experimentally established optimum.
+
+Only `num_steps_per_rollout=1` and `global_batch_size=rollout_batch_size *
+n_samples_per_prompt` are supported. All gradient accumulation happens before
+the single optimizer step, so the loss reuses the same forward's detached
+masked probabilities as old. It adds no separate old-model forward. Multiple
+optimizer steps and dropout are rejected; supporting them requires a separately
+cached old-policy forward, not repeated detachment of changing probabilities.
+
+Keep `--use-rollout-logprobs` for behavior transport and to skip native
+full-vocabulary recomputation. Do not enable upstream `--use-tis`: this custom
+loss owns correction and rejects an additional native correction. Reference KL
+and entropy stay separate from TIS. Metrics include `tis_weight_mean`,
+`tis_truncate_fraction`, `ppo_ratio_mean`, and the old/behavior
+`masked_logprob_abs_diff`, using the existing episode reducer.
+CPU tests do not establish real GPU or learning-curve acceptance. Historical
+experiments used frozen source; this change does not revise their results.

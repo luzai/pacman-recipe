@@ -69,7 +69,7 @@ async def resample_slots(slots, launch, rounds, rng):
         for slot, group in zip(missing, groups):
             zero = is_zero_variance(group)
             log[slot].append(dict(group_index=group_index(group), zero_variance=zero,
-                                  wins=sum(group_rewards(group))))
+                                  wins=sum(r >= 1.0 for r in group_rewards(group))))
             if zero:
                 spare[slot].append(group)
                 stats["zero_variance_groups"] += 1
@@ -107,7 +107,10 @@ async def rollout_slots(args, rollout_id, get_samples, records, log_path=None):
 
     async def launch(slot_ids):
         # Fresh slime samples (new indices) carrying the slot's start record.
-        groups = [_with_record(group, records[slot]) for group, slot in zip(get_samples(len(slot_ids)), slot_ids)]
+        templates = get_samples(len(slot_ids))
+        if len(templates) != len(slot_ids):
+            raise RuntimeError("sample source returned a different number of groups than slots")
+        groups = [_with_record(group, records[slot]) for group, slot in zip(templates, slot_ids)]
         state.submit_generate_tasks(groups)
         done, pending = await asyncio.wait(state.pendings)  # ALL_COMPLETED
         if pending:
@@ -141,21 +144,47 @@ def check_supported(args):
         raise ValueError(f"zero-variance resampling replaces these rollout options: {unsupported}")
 
 
+def get_sample_groups(data_source, count):
+    """Allocate fresh sample IDs without asking slime to wrap more than one epoch.
+
+    The pinned upstream source only wraps once per call. A singleton dataset
+    therefore needs separate allocations for the independent rollout groups.
+    """
+    if count < 1:
+        raise ValueError("sample allocation requires a positive count")
+    dataset = getattr(data_source, "dataset", None)
+    limit = len(dataset) if dataset is not None else count
+    if limit < 1:
+        raise ValueError("sample allocation requires a nonempty dataset and positive count")
+    groups = []
+    while len(groups) < count:
+        requested = min(limit, count - len(groups))
+        allocated = data_source.get_samples(requested)
+        if len(allocated) != requested:
+            raise RuntimeError("sample source did not allocate the requested groups")
+        groups.extend(allocated)
+    return groups
+
+
 def select_start_records(data_source, count):
     """Cover every start when the fixed dataset fits exactly one update.
 
     Resampling consumes the same source cursor used to allocate sample IDs.
     Reading starts from that cursor can cross shuffled epoch boundaries and
     repeat or omit fixed states. Select the complete dataset independently.
-    Larger datasets keep their ordinary rotating selection behavior.
+    A singleton dataset intentionally repeats its one start in independent
+    slots, without inventing record IDs. Larger datasets keep their ordinary
+    rotating selection behavior.
     """
     dataset = getattr(data_source, "dataset", None)
+    if dataset is not None and len(dataset) == 1:
+        return [dataset.samples[0].metadata["episode_record"]] * count
     if dataset is not None and len(dataset) == count:
         records = [sample.metadata["episode_record"] for sample in dataset.samples]
         if len({record["id"] for record in records}) != count:
             raise ValueError("fixed-start dataset contains duplicate episode records")
         return records
-    starts = data_source.get_samples(count)
+    starts = get_sample_groups(data_source, count)
     return [_episodes(group)[0][0].metadata["episode_record"] for group in starts]
 
 
@@ -171,6 +200,6 @@ def generate_rollout(args, rollout_id, data_source, evaluation=False):
         records = select_start_records(data_source, args.rollout_batch_size)
         run_dir = os.environ.get("PACMAN_RUN_DIR")
         log_path = Path(run_dir) / "resampling" / f"rollout-{rollout_id:04d}.json" if run_dir else None
-        return await rollout_slots(args, rollout_id, data_source.get_samples, records, log_path)
+        return await rollout_slots(args, rollout_id, lambda n: get_sample_groups(data_source, n), records, log_path)
 
     return run(go())

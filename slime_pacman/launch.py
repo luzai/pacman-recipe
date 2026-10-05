@@ -11,6 +11,8 @@ PROCESSOR_ENV = {
     "SGLANG_EXTERNAL_MM_PROCESSOR_PACKAGE": "slime_pacman.sglang_processors"
 }
 INHERITED_ENV = (
+    "PACMAN_EXPERIMENTAL_PPO_CLIP", "PACMAN_EXPERIMENTAL_KL_COEF",
+    "PACMAN_EXPERIMENTAL_ENTROPY_COEF",
     "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_HOME", "HF_HUB_CACHE",
     "OMP_NUM_THREADS", "TOKENIZERS_PARALLELISM",
     "PACMAN_PYTHON_ROOT", "MAAPACMAN_PACMAN_ROOT", "MAAPACMAN_PACMAN_PYTHON_ROOT",
@@ -66,6 +68,9 @@ def main():
     sys.path[:0] = [p for p in environment["PYTHONPATH"].split(os.pathsep) if p not in sys.path]
     ray.init(runtime_env={"env_vars": environment})
     try:
+        if environment.get("PACMAN_EXPERIMENTAL_KL_COEF") is not None:
+            from .reference_policy import install_driver
+            install_driver()
         sys.argv = [str(entry), *training_args]
         runpy.run_path(str(entry), run_name="__main__")
     finally:

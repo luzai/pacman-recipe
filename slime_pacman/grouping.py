@@ -30,11 +30,28 @@ def binary_reward(payload):
     return float(won)
 
 
-def group_advantages(rewards):
+def success_speed_reward(payload, coefficient=0.0):
+    """Terminal success-only bonus; steps are environment actions after restore."""
+    won = binary_reward(payload)
+    if not math.isfinite(coefficient) or not 0 <= coefficient <= 0.1:
+        raise ValueError("invalid success speed coefficient")
+    if not coefficient or not won:
+        return won
+    restart = payload.get("restart_state")
+    horizon = restart["remaining_budget"] if restart else payload["max_steps"]
+    steps = payload["steps"]
+    if type(horizon) is not int or horizon <= 0 or type(steps) is not int or not 0 <= steps <= horizon:
+        raise ValueError("invalid remaining horizon or executed steps")
+    return 1.0 + coefficient * (1.0 - steps / horizon)
+
+
+def group_advantages(rewards, *, success_speed_bonus=0.0):
+    if not math.isfinite(success_speed_bonus) or not 0 <= success_speed_bonus <= 0.1:
+        raise ValueError("invalid success speed coefficient")
     if len(rewards) != 12 or any(
-        r not in (0.0, 1.0) or not math.isfinite(r) for r in rewards
+        not math.isfinite(r) or not (r == 0.0 or 1.0 <= r <= 1.0 + success_speed_bonus) for r in rewards
     ):
-        raise ValueError("expected 12 binary episode rewards")
+        raise ValueError("expected 12 episode rewards within the declared success bonus range")
     values = torch.tensor(rewards, dtype=torch.float32)
     # Pinned slime: sample standard deviation (correction=1), epsilon 1e-6.
     return ((values - values.mean()) / (values.std(correction=1) + 1e-6)).tolist()
@@ -59,6 +76,7 @@ def post_process_rewards(args, samples):
             meta["episode_id"],
             {
                 "reward": sample.reward,
+                "success_speed_bonus": meta.get("success_speed_bonus", 0.0),
                 "steps": [],
                 "count": meta["decision_count"],
                 "version": meta["weight_version"],
@@ -77,9 +95,15 @@ def post_process_rewards(args, samples):
             meta["initial_state_id"],
         ):
             raise ValueError("inconsistent episode metadata")
+        if episode["success_speed_bonus"] != meta.get("success_speed_bonus", 0.0):
+            raise ValueError("inconsistent episode reward configuration")
         episode["steps"].append(meta["decision_index"])
     advantages = {}
     all_versions = set()
+    coefficients = {e["success_speed_bonus"] for group in groups.values() for e in group.values()}
+    if len(coefficients) != 1:
+        raise ValueError("rollout batch mixes reward configurations")
+    coefficient = next(iter(coefficients))
     for episodes in groups.values():
         if (
             len(episodes) != 12
@@ -99,7 +123,7 @@ def post_process_rewards(args, samples):
         advantages.update(
             zip(
                 episodes,
-                group_advantages([e["reward"] for e in episodes.values()]),
+                group_advantages([e["reward"] for e in episodes.values()], success_speed_bonus=coefficient),
                 strict=True,
             )
         )

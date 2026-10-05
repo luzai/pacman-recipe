@@ -40,7 +40,7 @@ def wilson(successes, n, z=1.959963984540054):
 
 
 def _wins(rows):
-    return np.array([float(r["reward"]) for r in rows])
+    return np.array([float(r["terminal_reason"] == "all_normal_pellets") for r in rows])
 
 
 def bootstrap_rates(seeds, rng, resamples=BOOTSTRAP_RESAMPLES):
@@ -57,7 +57,7 @@ def summarize(rows, group):
     seeds = by_seed(rows, group)
     out = dict(group=group, seeds={}, episodes=0, wins=0, terminals={})
     for seed, items in seeds.items():
-        wins = int(sum(float(r["reward"]) for r in items))
+        wins = int(_wins(items).sum())
         terminals = {}
         for r in items:
             terminals[r["terminal_reason"]] = terminals.get(r["terminal_reason"], 0) + 1

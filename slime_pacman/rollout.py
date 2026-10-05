@@ -6,6 +6,7 @@ from functools import lru_cache
 import logging
 import json
 import os
+import statistics
 from pathlib import Path
 import uuid
 
@@ -22,7 +23,7 @@ from pacman_recipe.level1.episode import ModelTurn, PacmanEpisodeRunner
 from pacman_recipe.level1.trajectories import TrajectoryAuditError
 from .config import load_config, runner_options
 from .generation import SGLangGenerator
-from .grouping import binary_reward
+from .grouping import binary_reward, success_speed_reward
 
 
 @dataclass
@@ -32,6 +33,8 @@ class EpisodeResult:
     weight_version: str
     trajectory: dict | None
     terminal_reason: str
+    success_speed_bonus: float = 0.0
+    environment_steps: int = 0
 
 
 class EpisodeRunner(PacmanEpisodeRunner):
@@ -42,6 +45,7 @@ class EpisodeRunner(PacmanEpisodeRunner):
         if record["environment"]["max_steps"] != config.max_steps:
             raise ValueError("episode horizon differs from the runner configuration")
         self.record = record
+        self.success_speed_bonus = config.success_speed_bonus
         self.decisions = []
         self.generate = generate
         expected_row = runner_row(record)
@@ -81,7 +85,8 @@ class EpisodeRunner(PacmanEpisodeRunner):
             # The existing runner explicitly returns None on initial refusal.
             # Retain this zero-decision episode in its GRPO group; never replace it.
             return EpisodeResult(
-                0.0, [], str(empty_weight_version), None, "initial_safety_refusal"
+                0.0, [], str(empty_weight_version), None, "initial_safety_refusal",
+                self.success_speed_bonus,
             )
         reward = binary_reward(self.last_episode)
         if abs(self.last_episode["total_shaped_reward"] - reward) > 1e-6:
@@ -89,11 +94,13 @@ class EpisodeRunner(PacmanEpisodeRunner):
         trajectory = neutral_trajectory(self.last_episode)
         audit_neutral_trajectory(trajectory)
         return EpisodeResult(
-            reward,
+            success_speed_reward(self.last_episode, self.success_speed_bonus),
             self.decisions,
             self.decisions[0].weight_version,
             trajectory,
             self.last_episode["terminal_reason"],
+            self.success_speed_bonus,
+            self.last_episode["steps"],
         )
 
 
@@ -132,6 +139,9 @@ def samples_from_episode(parent, episode, tokenizer):
             )
             sample.multimodal_train_inputs = decision.multimodal_train_inputs
         sample.train_metadata = dict(
+            success_speed_bonus=episode.success_speed_bonus,
+            won=episode.terminal_reason == "all_normal_pellets",
+            environment_steps=episode.environment_steps,
             group_id=parent.group_index,
             episode_id=episode_id,
             initial_state_id=parent.metadata["episode_record"]["id"],
@@ -437,6 +447,9 @@ async def generate_episode(args, sample, sampling_params, evaluation=False):
                 "schema": "pacman-rollout-v1",
                 "record": record,
                 "reward": episode.reward,
+                "won": episode.terminal_reason == "all_normal_pellets",
+                "success_speed_bonus": episode.success_speed_bonus,
+                "environment_steps": episode.environment_steps,
                 "weight_version": episode.weight_version,
                 "terminal_reason": episode.terminal_reason,
                 "trajectory": episode.trajectory,
@@ -466,16 +479,20 @@ def log_rollout(rollout_id, args, samples, rollout_extra_metrics, rollout_time):
 
     episodes = {}
     groups = {}
+    successful_steps = {}
     for sample in iter_samples(samples):
         meta = sample.train_metadata
         episodes[meta["episode_id"]] = float(sample.reward)
+        if meta.get("won") and "environment_steps" in meta:
+            successful_steps[meta["episode_id"]] = meta["environment_steps"]
         groups.setdefault(meta["group_id"], {})[meta["episode_id"]] = float(
             sample.reward
         )
     metrics = dict(rollout_extra_metrics or {})
     metrics.update(
         {
-            "rollout/win_rate": sum(episodes.values()) / len(episodes),
+            "rollout/win_rate": sum(r >= 1.0 for r in episodes.values()) / len(episodes),
+            "rollout/mean_reward": sum(episodes.values()) / len(episodes),
             "rollout/zero_variance_groups": sum(
                 len(set(g.values())) == 1 for g in groups.values()
             )
@@ -486,6 +503,8 @@ def log_rollout(rollout_id, args, samples, rollout_extra_metrics, rollout_time):
             "rollout/step": rollout_id,
         }
     )
+    if successful_steps:
+        metrics["rollout/success_steps_median"] = statistics.median(successful_steps.values())
     logging.getLogger(__name__).info("Pacman rollout metrics: %s", metrics)
     logging_utils.log(args, metrics, step_key="rollout/step")
     return True
@@ -500,16 +519,23 @@ def log_eval(rollout_id, args, data, extra_metrics=None):
     versions = set()
     for name, result in data.items():
         episodes = {}
+        successful_steps = {}
         for sample in iter_samples(result["samples"]):
             versions.update(sample.weight_versions or [])
             episode_id = sample.train_metadata["episode_id"]
             reward = float(sample.reward)
+            meta = sample.train_metadata
+            if meta.get("won") and "environment_steps" in meta:
+                successful_steps[episode_id] = meta["environment_steps"]
             if episodes.setdefault(episode_id, reward) != reward:
                 raise ValueError("inconsistent evaluation episode reward")
         if not episodes:
             raise ValueError("empty evaluation")
-        metrics[f"eval/{name}/win_rate"] = sum(episodes.values()) / len(episodes)
+        metrics[f"eval/{name}/win_rate"] = sum(r >= 1.0 for r in episodes.values()) / len(episodes)
+        metrics[f"eval/{name}/mean_reward"] = sum(episodes.values()) / len(episodes)
         metrics[f"eval/{name}/episodes"] = len(episodes)
+        if successful_steps:
+            metrics[f"eval/{name}/success_steps_median"] = statistics.median(successful_steps.values())
     if len(versions) > 1:
         raise ValueError("evaluation mixes weight versions")
     metrics["eval/step"] = rollout_id

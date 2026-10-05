@@ -97,6 +97,8 @@ def build_command(*, slime_root, model, dataset, run_dir, config, updates, resum
             "--optimizer-cpu-offload",
             "--overlap-cpu-optimizer-d2h-h2d",
             "--use-precision-aware-optimizer",
+            # Preserve behavior probability transport and skip upstream full-vocab
+            # recomputation. Custom loss owns masked old/behavior decoupling.
             "--use-rollout-logprobs",
             "--rollout-shuffle",
             "--accumulate-allreduce-grads-in-fp32",
