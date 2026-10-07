@@ -98,7 +98,8 @@ DECISION_BOUNDARY_SCHEMA = "pacman-decision-boundary-v1"
 def _boundary_verify(png, candidates, constraint, system_prompt, user_prompt):
     """What a restored boundary must reproduce exactly before the model is asked."""
     return json.loads(json.dumps({
-        "png_sha256": png_sha256(png),
+        "png_sha256": png_sha256(png) if png else None,
+        **({"observation_mode": "ascii", "observation_text_sha256": text_sha256(user_prompt)} if not png else {}),
         "candidates": [candidate.as_dict() for candidate in candidates],
         "allowed_token_ids": [int(token) for token in constraint.allowed_token_ids],
         "system_prompt_sha256": text_sha256(system_prompt),
@@ -474,11 +475,15 @@ class PacmanEpisodeRunner:
         image_prompt_style = str(
             options.get("image_prompt_style", "minimal_v1")
         )
+        from .text_observation import text_sent_prompt_sha256
+        ascii_observation = image_prompt_style == 'ascii_edward_v1'
         system_prompt, user_instruction = prompt_text(image_prompt_style)
         scripted = list(options.get("scripted_actions") or [])
         scripted_objectives = list(options.get("scripted_objectives") or [])
         scripted_ids = list(options.get("scripted_completion_ids") or [])
         edward_options = bool(options.get("edward_options", False))
+        if ascii_observation and not edward_options:
+            raise ValueError('ASCII experiment requires Edward actions')
         fallback_mode = validate_fallback_mode(
             options.get("edward_fallback_mode", "refuse"), edward_options=edward_options
         )
@@ -491,7 +496,11 @@ class PacmanEpisodeRunner:
                     "Edward options require objective_encoding="
                     f"{EDWARD_OPTION_CONSTRAINT}"
                 )
-            system_prompt = edward_system_prompt(fallback_mode)
+            if ascii_observation:
+                from .prompts import ascii_edward_system_prompt
+                system_prompt = ascii_edward_system_prompt(fallback_mode)
+            else:
+                system_prompt = edward_system_prompt(fallback_mode)
         if edward_options and scripted:
             raise ValueError(
                 "edward_options uses scripted_objectives, not scripted_actions"
@@ -704,7 +713,7 @@ class PacmanEpisodeRunner:
                     in ("wall_avoidance_local_v2", "wall_avoidance_axis_v3")
                     else image
                 )
-                png = encode_png(model_image)
+                png = b'' if ascii_observation else encode_png(model_image)
                 live_snapshot = env.snapshot()
                 option_candidates: tuple[PlannerCandidate, ...] = ()
                 objective_constraint: ObjectiveTokenConstraint | None = None
@@ -779,7 +788,7 @@ class PacmanEpisodeRunner:
                         "live environment reported no open movement actions"
                     )
                 state_context = None
-                if image_prompt_style == "live_state_v3":
+                if image_prompt_style in ("live_state_v3", "ascii_edward_v1"):
                     position = (
                         int(previous_info["pacman_position"][0]),
                         int(previous_info["pacman_position"][1]),
@@ -880,11 +889,13 @@ class PacmanEpisodeRunner:
                             ),
                         }
                     )
-                messages = build_image_messages(
-                    png,
-                    prompt_style=image_prompt_style,
-                    state_context=state_context,
-                )
+                if ascii_observation:
+                    from .ascii_observation import render_ascii_map
+                    state_context['ascii_map'] = render_ascii_map(planner.level, live_snapshot)
+                    messages = [dict(role='system', content=system_prompt),
+                                dict(role='user', content=[dict(type='text', text='')])]
+                else:
+                    messages = build_image_messages(png, prompt_style=image_prompt_style, state_context=state_context)
                 if edward_options:
                     messages[0]["content"] = system_prompt
                 if objective_constraint is not None:
@@ -895,6 +906,13 @@ class PacmanEpisodeRunner:
                             objective_constraint,
                         )
                     )
+                    if ascii_observation:
+                        from .ascii_observation import render_ascii_map
+                        from .prompts import compact_ascii_edward_decision_prompt
+                        messages[1]['content'][0]['text'] = compact_ascii_edward_decision_prompt(
+                            state_context, option_candidates, objective_constraint,
+                            render_ascii_map(planner.level, live_snapshot), fallback_mode=fallback_mode)
+                        state_context["ascii_map"] = render_ascii_map(planner.level, live_snapshot)
                 model_user_instruction = str(
                     messages[1]["content"][0]["text"]
                 )
@@ -911,12 +929,12 @@ class PacmanEpisodeRunner:
                         text_sha256(model_user_instruction) if model_called else None
                     ),
                     "sent_prompt_sha256": (
-                        sent_prompt_sha256(system_prompt, model_user_instruction, png_sha256(png))
+                        (text_sent_prompt_sha256(system_prompt, model_user_instruction) if ascii_observation else sent_prompt_sha256(system_prompt, model_user_instruction, png_sha256(png)))
                         if model_called else None
                     ),
                 }
-                if image_count(messages) != 1:
-                    raise RuntimeError("model request must contain exactly one image")
+                if image_count(messages) != (0 if ascii_observation else 1):
+                    raise RuntimeError("model request observation modality differs")
                 try:
                     if edward_options and active_option is not None:
                         if active_turn is None or active_action is None:
@@ -1140,7 +1158,8 @@ class PacmanEpisodeRunner:
                         "terminated": True,
                         "truncated": False,
                         "terminal_reason": "parse_failed",
-                        "observation_png_sha256": png_sha256(png),
+                        "observation_png_sha256": None if ascii_observation else png_sha256(png),
+                        **({"observation_mode": "ascii", "observation_text_sha256": text_sha256(state_context["ascii_map"]), "observation_ascii_map": state_context["ascii_map"]} if ascii_observation else {}),
                     }
                     trajectory.append(record)
                     if turn.completion_id:
@@ -1429,7 +1448,8 @@ class PacmanEpisodeRunner:
                     "terminated": bool(terminated),
                     "truncated": bool(truncated),
                     "terminal_reason": info["terminal_reason"],
-                    "observation_png_sha256": png_sha256(png),
+                    "observation_png_sha256": None if ascii_observation else png_sha256(png),
+                        **({"observation_mode": "ascii", "observation_text_sha256": text_sha256(state_context["ascii_map"]), "observation_ascii_map": state_context["ascii_map"]} if ascii_observation else {}),
                 }
                 trajectory.append(record)
                 if edward_options:
@@ -1524,6 +1544,7 @@ class PacmanEpisodeRunner:
                 "system_prompt": system_prompt,
                 "user_instruction": user_instruction,
                 "observation_contract": (
+                    "ascii_plus_live_state_and_navigation_history" if ascii_observation else
                     "screenshot_plus_live_state_and_navigation_history"
                     if image_prompt_style == "live_state_v3"
                     else "screenshot_only"
@@ -1749,4 +1770,3 @@ class PacmanEpisodeRunner:
             raw_response=raw_response,
             request_extra_body=extra_body,
         )
-

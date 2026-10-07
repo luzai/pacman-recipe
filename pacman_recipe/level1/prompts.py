@@ -259,6 +259,8 @@ USER_INSTRUCTION = MINIMAL_V1_USER_INSTRUCTION
 
 
 def prompt_text(prompt_style: str) -> tuple[str, str]:
+    if prompt_style == "ascii_edward_v1":
+        return ASCII_EDWARD_SYSTEM_PROMPT, ASCII_EDWARD_USER_TEMPLATE
     if prompt_style == "minimal_v1":
         return MINIMAL_V1_SYSTEM_PROMPT, MINIMAL_V1_USER_INSTRUCTION
     if prompt_style == "wall_avoidance_v1":
@@ -348,6 +350,10 @@ def prompt_user_template(
     prompt_style: str, *, edward_options: bool, fallback_mode: str = "refuse"
 ) -> str:
     validate_fallback_mode(fallback_mode, edward_options=edward_options)
+    if prompt_style == "ascii_edward_v1":
+        if not edward_options:
+            raise ValueError("ASCII Edward requires Edward options")
+        return ASCII_EDWARD_USER_TEMPLATE + (EDWARD_RISK_USER_SUFFIX if fallback_mode == "risk_ranked" else "")
     return (
         EDWARD_OPTION_CODE_V2_USER_TEMPLATE + (
             EDWARD_RISK_USER_SUFFIX if fallback_mode == "risk_ranked" else ""
@@ -365,6 +371,10 @@ def prompt_contract_metadata(
     This is a template fingerprint, not a claim that per-turn prompts are equal.
     Trajectories separately fingerprint the exact rendered messages and image.
     """
+    if prompt_style == "ascii_edward_v1":
+        if not edward_options:
+            raise ValueError("ASCII Edward requires Edward options")
+        return ascii_edward_prompt_contract_metadata(fallback_mode=fallback_mode)
     system, _ = prompt_text(prompt_style)
     if edward_options:
         system = edward_system_prompt(fallback_mode)
@@ -558,3 +568,62 @@ def image_count(messages: list[dict[str, Any]]) -> int:
                 if isinstance(item, dict) and item.get("type") == "image_url"
             )
     return count
+
+# Separate ASCII identity: archived image constants and renderers remain unchanged.
+ASCII_EDWARD_SYSTEM_PROMPT = EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT.replace(
+    "Use only the latest screenshot and authoritative structured state; if they conflict, "
+    "trust the structured state for coordinates and ghost status.",
+    "The board is an ASCII map of the current frame. Legend: # wall, . pellet, "
+    "o power pellet, P Pac-Man, G normal ghost, V vulnerable ghost, E ghost eyes, "
+    "- ghost door, = tunnel/level door, space empty. Map row r and column c equal "
+    "[r,c] in the state JSON. If the map and the state JSON ever disagree, trust the state JSON.",
+).replace("Colors can vary; use shape and maze context. ", "").replace(
+    "Use the structured ghost state to determine whether a ghost is vulnerable; "
+    "do not infer flashing from a single screenshot.",
+    "Use the structured ghost state to determine whether a ghost is vulnerable.",
+)
+ASCII_EDWARD_USER_TEMPLATE = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.replace(
+    "{decision_state}", "{ascii_map}\n{decision_state}", 1
+)
+
+
+def ascii_edward_system_prompt(fallback_mode: str = "refuse") -> str:
+    validate_fallback_mode(fallback_mode)
+    return ASCII_EDWARD_SYSTEM_PROMPT
+
+
+def compact_ascii_edward_decision_prompt(
+    state_context: Mapping[str, Any], candidates: Sequence[Any], constraint: Any,
+    map_text: str, *, fallback_mode: str = "refuse",
+) -> str:
+    """Retain the exact candidate/state/risk serialization; insert current map."""
+    from .ascii_observation import ASCII_MAP_HEADER
+    if not map_text.startswith(ASCII_MAP_HEADER + "\n"):
+        raise ValueError("expected rendered current-frame ASCII map")
+    base = render_edward_decision_prompt(
+        state_context, candidates, constraint, fallback_mode=fallback_mode
+    )
+    prefix = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}", 1)[0]
+    if not base.startswith(prefix):
+        raise ValueError("Edward template prefix changed")
+    return prefix + map_text + "\n" + base[len(prefix):]
+
+
+def ascii_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse") -> dict[str, str]:
+    from . import ascii_observation
+    template = prompt_user_template("ascii_edward_v1", edward_options=True, fallback_mode=fallback_mode)
+    fingerprint = {
+        "system": ascii_edward_system_prompt(fallback_mode), "user_template": template,
+        "ascii_renderer_module": inspect.getsource(ascii_observation).replace("\r\n", "\n"),
+        "renderer_sources": [inspect.getsource(fn).replace("\r\n", "\n") for fn in (
+            compact_ascii_edward_decision_prompt, render_edward_decision_prompt,
+            compact_edward_decision_prompt, risk_ranked_edward_decision_prompt,
+        )],
+    }
+    return {
+        "action_protocol": "edward-option-code-v1",
+        "prompt_version": "edward-ascii-option-code-v1",
+        "prompt_template_sha256": text_sha256(json.dumps(fingerprint, sort_keys=True, allow_nan=False)),
+        "system_prompt_sha256": text_sha256(ASCII_EDWARD_SYSTEM_PROMPT),
+        "user_prompt_template_sha256": text_sha256(template),
+    }

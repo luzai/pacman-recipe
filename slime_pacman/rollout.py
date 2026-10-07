@@ -324,6 +324,7 @@ async def _collect_episode(
             endpoint=endpoint,
             client=client,
             max_input_tokens=config.max_input_tokens,
+            observation_mode=getattr(config, "observation_mode", "image"),
         )
         runner = EpisodeRunner(
             record,

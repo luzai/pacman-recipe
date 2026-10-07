@@ -65,8 +65,11 @@ def repository_identity(path):
 
 
 def make_episode_record(
-    seed, *, split, recipe_root, game_root, backend_root, backend="slime", max_steps=512
+    seed, *, split, recipe_root, game_root, backend_root, backend="slime", max_steps=512,
+    observation_mode="image", edward_fallback_mode="refuse"
 ):
+    if observation_mode not in {'image', 'ascii'}:
+        raise ValueError('Unsupported observation mode')
     if (
         backend not in {"slime", "areal"}
         or split not in {"train", "validation", "test"}
@@ -114,7 +117,8 @@ def make_episode_record(
         training_backend=backend,
         environment=environment,
         source_revisions=sources,
-        prompt=prompt_contract_metadata("live_state_v3", edward_options=True),
+        prompt=prompt_contract_metadata("ascii_edward_v1" if observation_mode == 'ascii' else "live_state_v3",
+                                        edward_options=True, fallback_mode=edward_fallback_mode),
     )
 
 
@@ -137,9 +141,9 @@ def validate_episode_record(record, *, expected_sources=None):
             value = source.get(key, "")
             if len(value) != length or any(c not in "0123456789abcdef" for c in value):
                 raise ValueError("invalid source hash")
-    if record.get("prompt") != prompt_contract_metadata(
-        "live_state_v3", edward_options=True
-    ):
+    known_prompts = [prompt_contract_metadata(style, edward_options=True, fallback_mode=mode)
+                     for style in ("live_state_v3", "ascii_edward_v1") for mode in ("refuse", "risk_ranked")]
+    if record.get("prompt") not in known_prompts:
         raise ValueError("prompt contract changed; regenerate data")
     env = record["environment"]
     if (

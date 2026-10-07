@@ -23,16 +23,20 @@ class PacmanConfig:
     learning_rate: float = 5e-7
     success_speed_bonus: float = 0.0
     edward_fallback_mode: str = "refuse"
+    observation_mode: str = "image"
 
     def __post_init__(self):
+        if self.observation_mode not in {'image', 'ascii'}:
+            raise ValueError('Unsupported observation mode')
         if self.edward_fallback_mode not in {"refuse", "risk_ranked"}:
             raise ValueError("unsupported Edward fallback mode")
         if not math.isfinite(self.success_speed_bonus) or not 0 <= self.success_speed_bonus <= 0.1:
             raise ValueError("success_speed_bonus must be finite and between 0 and 0.1")
-        if self.group_size != 12 or self.groups_per_update != 4:
-            raise ValueError("C2 requires 12 episodes/group and 4 groups/update")
-        if self.temperature != 0.7 or self.clip != 0.2:
-            raise ValueError("C2 requires temperature 0.7 and symmetric clip 0.2")
+        expected_groups, expected_clip = (16, 0.05) if self.observation_mode == 'ascii' else (4, 0.2)
+        if self.group_size != 12 or self.groups_per_update != expected_groups:
+            raise ValueError("Declared observation mode requires its fixed group count")
+        if self.temperature != 0.7 or self.clip != expected_clip:
+            raise ValueError("Declared observation mode requires temperature0.7 and its fixed clip")
         for name in (
             "max_steps",
             "max_input_tokens",
@@ -79,8 +83,8 @@ def runner_options(config: PacmanConfig):
         edward_options=True,
         edward_fallback_mode=config.edward_fallback_mode,
         enable_thinking=False,
-        image_prompt_style="live_state_v3",
-        prompt_version="edward-option-code-v2",
+        image_prompt_style="ascii_edward_v1" if config.observation_mode == 'ascii' else "live_state_v3",
+        prompt_version="edward-ascii-option-code-v1" if config.observation_mode == 'ascii' else "edward-option-code-v2",
         episode_life_mode="single_death",
         ghost_mode="normal",
         environment_max_steps=config.max_steps,

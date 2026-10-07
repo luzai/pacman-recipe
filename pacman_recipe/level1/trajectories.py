@@ -657,7 +657,7 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
         expected["action_protocol"] = "direct-action-token-v1"
     if any(payload.get(key) != value for key, value in expected.items()):
         raise ValueError("trajectory prompt template does not match actual harness")
-    system = prompt_module.edward_system_prompt(fallback_mode) if edward else prompt_text(style)[0]
+    system = (prompt_module.ascii_edward_system_prompt(fallback_mode) if style == 'ascii_edward_v1' else prompt_module.edward_system_prompt(fallback_mode)) if edward else prompt_text(style)[0]
     if payload.get("system_prompt") != system:
         raise ValueError("trajectory system prompt does not match harness")
     for step in payload.get("trajectory", []):
@@ -678,12 +678,14 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
         user = step.get("model_user_instruction")
         if not isinstance(user, str) or step.get("model_system_prompt") != system:
             raise ValueError("trajectory missing actual model prompt text")
+        from .text_observation import text_sent_prompt_sha256
+        expected_sent = text_sent_prompt_sha256(system, user) if style == 'ascii_edward_v1' else sent_prompt_sha256(system, user, step['observation_png_sha256'])
         if step.get("model_user_prompt_sha256") != text_sha256(user) or step.get(
             "sent_prompt_sha256"
-        ) != sent_prompt_sha256(system, user, step["observation_png_sha256"]):
+        ) != expected_sent:
             raise ValueError("trajectory actual model prompt hash mismatch")
         context = step.get("observation_context")
-        if style == "live_state_v3":
+        if style in ("live_state_v3", "ascii_edward_v1"):
             validate_ghost_state(
                 {**context, "ghost_mode": payload["ghost_mode"], "events": []},
                 payload["ghost_mode"],
@@ -703,9 +705,10 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
                     inverse[candidate.option_id] for candidate in candidates
                 ),
             )
-            actual = prompt_module.render_edward_decision_prompt(
-                context, candidates, constraint, fallback_mode=fallback_mode
-            )
+            if style == 'ascii_edward_v1':
+                actual = prompt_module.compact_ascii_edward_decision_prompt(context, candidates, constraint, context['ascii_map'], fallback_mode=fallback_mode)
+            else:
+                actual = prompt_module.render_edward_decision_prompt(context, candidates, constraint, fallback_mode=fallback_mode)
         else:
             actual = (
                 live_state_instruction(context)
@@ -1116,7 +1119,11 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
                     active_option_key = option_key
                     active_option_step = option_step
         digest = step["observation_png_sha256"]
-        if not isinstance(digest, str) or len(digest) != 64:
+        if payload.get('image_prompt_style') == 'ascii_edward_v1':
+            text = step.get('observation_ascii_map')
+            if digest is not None or step.get('observation_mode') != 'ascii' or not isinstance(text, str) or step.get('observation_text_sha256') != text_sha256(text):
+                raise ValueError('ASCII trajectory requires real text identity and no PNG hash')
+        elif not isinstance(digest, str) or len(digest) != 64:
             raise ValueError(f"trajectory step {index} has invalid PNG hash")
         if int(step["step"]) != index:
             raise ValueError("trajectory steps must be contiguous and one-based")

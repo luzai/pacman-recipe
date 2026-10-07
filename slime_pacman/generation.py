@@ -21,7 +21,7 @@ class Decision:
     behavior_log_prob: float
     weight_version: str
     multimodal_train_inputs: dict
-    image_sha256: str
+    image_sha256: str | None
     candidate_log_probs: list[float]
 
 
@@ -72,8 +72,33 @@ def _image_url(messages):
     return urls[0]
 
 
+def process_text_request(processor, messages, max_input_tokens):
+    if len(messages) != 2 or [m['role'] for m in messages] != ['system', 'user']:
+        raise ValueError('Text policy requires a fresh system/user pair')
+    chat = []
+    for message in messages:
+        content = message['content']
+        if isinstance(content, list):
+            if not content or any(p.get('type') != 'text' for p in content):
+                raise ValueError('ASCII policy refuses image or nontext content')
+            content = '\n'.join(p['text'] for p in content)
+        if not isinstance(content, str):
+            raise ValueError('ASCII content must be text')
+        chat.append(dict(role=message['role'], content=content))
+    tokenizer = getattr(processor, 'tokenizer', processor)
+    prompt = tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True, enable_thinking=False)
+    processed = tokenizer(prompt, return_tensors='pt', truncation=False)
+    ids = processed['input_ids']
+    if ids.ndim != 2 or ids.shape[0] != 1 or not 0 < ids.shape[1] <= max_input_tokens:
+        raise ValueError('ASCII prompt exceeds budget; truncation forbidden')
+    return prompt, ids[0].tolist(), {}, None
+
+
 class SGLangGenerator:
-    def __init__(self, *, processor, endpoint, client, max_input_tokens=2048):
+    def __init__(self, *, processor, endpoint, client, max_input_tokens=2048, observation_mode='image'):
+        if observation_mode not in ('image', 'ascii'):
+            raise ValueError('Unsupported observation mode')
+        self.observation_mode = observation_mode
         self.processor, self.endpoint, self.client = processor, endpoint, client
         self.max_input_tokens = max_input_tokens
         self.serialized_processor = PacmanLogitProcessor.to_str()
@@ -81,10 +106,12 @@ class SGLangGenerator:
     async def __call__(self, messages, constraint):
         import base64
 
-        prompt, ids, mm, image = process_request(
-            self.processor, messages, constraint, self.max_input_tokens
-        )
-        image_url = _image_url(messages)
+        if self.observation_mode == 'ascii':
+            prompt, ids, mm, image = process_text_request(self.processor, messages, self.max_input_tokens)
+            image_url = None
+        else:
+            prompt, ids, mm, image = process_request(self.processor, messages, constraint, self.max_input_tokens)
+            image_url = _image_url(messages)
         support = constraint.allowed_token_ids
         body = {
             "rid": uuid.uuid4().hex,
@@ -109,6 +136,8 @@ class SGLangGenerator:
             "return_logprob": True,
             "token_ids_logprob": support,
         }
+        if image_url is None:
+            del body['image_data']
         response = await self.client.post(self.endpoint, json=body)
         response.raise_for_status()
         result = response.json()
@@ -146,7 +175,7 @@ class SGLangGenerator:
         completion = constraint.code_for_option(constraint.option_for_tokens([action]))
         if result.get("text") != completion:
             raise ValueError("SGLang decoded text differs from exact selected token")
-        raw = base64.b64decode(image_url.split(",", 1)[1])
+        raw = base64.b64decode(image_url.split(",", 1)[1]) if image_url else None
         return Decision(
             prompt,
             ids,
@@ -156,6 +185,6 @@ class SGLangGenerator:
             logp,
             version,
             mm,
-            png_sha256(raw),
+            png_sha256(raw) if raw is not None else None,
             probabilities,
         )
