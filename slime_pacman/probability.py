@@ -6,6 +6,8 @@ import os
 
 import torch
 
+from .clip_cov import detach_mask
+
 
 def validate_support(support, vocab_size):
     if not support or any(
@@ -216,11 +218,16 @@ def custom_loss(args, batch, logits, sum_of_sample_mean):
     old = new.detach()
     weights = tis_weights(old, behavior)
     advantages = torch.cat(batch["advantages"]).to(new)
-    policy_loss = sum_of_sample_mean(weights * clipped_policy_terms(new, old, advantages, args.eps_clip))
+    # Clip-Cov: annotated decisions contribute no policy term (verl corr=0).
+    keep = detach_mask(metadata, new)
+    policy_terms = weights * clipped_policy_terms(new, old, advantages, args.eps_clip)
+    policy_loss = sum_of_sample_mean(policy_terms if keep is None else policy_terms * keep)
     entropy = sum_of_sample_mean(torch.stack(entropies))
     kl = sum_of_sample_mean(torch.stack(kls)) if expected_kl else policy_loss * 0
     loss = policy_loss - expected_entropy * entropy + expected_kl * kl
+    extra = {} if keep is None else {"clip_cov_detach_fraction": sum_of_sample_mean(1 - keep).detach()}
     return loss, {
+        **extra,
         "loss": loss.detach(),
         "policy_loss": policy_loss.detach(),
         "entropy_bonus": (expected_entropy * entropy).detach(),
