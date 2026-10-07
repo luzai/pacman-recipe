@@ -1,6 +1,14 @@
 """Retain all episodes and pad only the DP schedule with zero-loss rows."""
 
 from copy import copy, deepcopy
+import logging
+import os
+from pathlib import Path
+import uuid
+
+from .clip_cov import annotate
+
+logger = logging.getLogger(__name__)
 
 
 def pad_schedule(data, dp_size):
@@ -44,4 +52,11 @@ def convert_samples(args, samples):
     upstream_args = copy(args)
     upstream_args.custom_convert_samples_to_train_data_path = None
     data = BatchBuilder(upstream_args).convert(samples)
+    summary = annotate(args, data)
+    if summary is not None:
+        logger.info("Clip-Cov update selection: %s", summary)
+        if os.environ.get("PACMAN_RUN_DIR"):
+            from pacman_recipe.level1.contracts import write_json_new
+
+            write_json_new(Path(os.environ["PACMAN_RUN_DIR"]) / "clip-cov" / f"{summary['seed']:016x}-{uuid.uuid4().hex}.json", summary)
     return pad_schedule(data, args.actor_num_nodes * args.actor_num_gpus_per_node)
