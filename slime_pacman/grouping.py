@@ -4,7 +4,6 @@ from collections import defaultdict
 import math
 
 
-
 def binary_reward(payload):
     if payload.get("parse_failures", 0) or payload.get(
         "canonical_action_violations", 0
@@ -44,13 +43,17 @@ def success_speed_reward(payload, coefficient=0.0):
     return 1.0 + coefficient * (1.0 - steps / horizon)
 
 
-def group_advantages(rewards, *, success_speed_bonus=0.0):
+def group_advantages(rewards, *, success_speed_bonus=0.0, zero_binary_extremes=False):
     if not math.isfinite(success_speed_bonus) or not 0 <= success_speed_bonus <= 0.1:
         raise ValueError("invalid success speed coefficient")
     if len(rewards) != 12 or any(
         not math.isfinite(r) or not (r == 0.0 or 1.0 <= r <= 1.0 + success_speed_bonus) for r in rewards
     ):
         raise ValueError("expected 12 episode rewards within the declared success bonus range")
+    if type(zero_binary_extremes) is not bool:
+        raise ValueError("explicit binary extreme rule required")
+    if zero_binary_extremes and (all(r == 0.0 for r in rewards) or all(r >= 1.0 for r in rewards)):
+        return [0.0] * 12
     # Constant shaped rewards must be exactly zero, including non-binary values.
     if all(r == rewards[0] for r in rewards):
         return [0.0] * 12
@@ -79,6 +82,7 @@ def post_process_rewards(args, samples):
             {
                 "reward": sample.reward,
                 "success_speed_bonus": meta.get("success_speed_bonus", 0.0),
+                "sampling_contract": meta.get("sampling_contract"),
                 "steps": [],
                 "count": meta["decision_count"],
                 "version": meta["weight_version"],
@@ -99,6 +103,8 @@ def post_process_rewards(args, samples):
             raise ValueError("inconsistent episode metadata")
         if episode["success_speed_bonus"] != meta.get("success_speed_bonus", 0.0):
             raise ValueError("inconsistent episode reward configuration")
+        if episode["sampling_contract"] != meta.get("sampling_contract"):
+            raise ValueError("inconsistent episode sampling contract")
         episode["steps"].append(meta["decision_index"])
     advantages = {}
     all_versions = set()
@@ -106,6 +112,10 @@ def post_process_rewards(args, samples):
     if len(coefficients) != 1:
         raise ValueError("rollout batch mixes reward configurations")
     coefficient = next(iter(coefficients))
+    contracts = {e["sampling_contract"] for group in groups.values() for e in group.values()}
+    if len(contracts) != 1 or not contracts <= {None, "ascii-diverse-first192-v1", "ascii-diverse-first192-v2"}:
+        raise ValueError("rollout batch mixes or has unknown sampling contracts")
+    zero_extremes = contracts in ({"ascii-diverse-first192-v1"}, {"ascii-diverse-first192-v2"})
     for episodes in groups.values():
         if (
             len(episodes) != 12
@@ -125,7 +135,8 @@ def post_process_rewards(args, samples):
         advantages.update(
             zip(
                 episodes,
-                group_advantages([e["reward"] for e in episodes.values()], success_speed_bonus=coefficient),
+                group_advantages([e["reward"] for e in episodes.values()], success_speed_bonus=coefficient,
+                                 zero_binary_extremes=zero_extremes),
                 strict=True,
             )
         )

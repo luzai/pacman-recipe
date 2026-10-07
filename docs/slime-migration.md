@@ -1,5 +1,11 @@
 # slime 迁移：实现与验收
 
+## ASCII动态bank v2（2026-10-07）
+
+独立模块`slime_pacman.diverse_bank_v2`与`route_capture_v2`实现4开局＋4回练＋2早期＋6近期、16代表池、完整路线早期与死亡前快照。v1模块保持不变；v2 checkpoint明确拒绝v1身份。运行集成和验证命令见[实现记录](../../reports/slime-migration-20260928/round2/ascii-edward-next-run/V2_IMPLEMENTATION.md)。真实初始化可行性、GPU概率/TIS和原生恢复尚待验证，未启动200更新训练。
+
+独立200-update长训入口及预算见[LONG_TRAINING](../../reports/slime-migration-20260928/round2/ascii-edward-next-run/LONG_TRAINING.md)：共享总游戏上限55,248，不设时间上限，不另跑两更新smoke。Clip-Cov ed5a88f已同步，本轮关闭；仅准备代码与配置，训练未启动。
+
 ## 当前边界
 
 本地 adapter、公共 episode runner、中立数据格式及 CPU 验收已实现。
