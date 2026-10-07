@@ -10,7 +10,7 @@
 
 不同速度的全赢组有不同 reward，可以保留并计算 GRPO advantage。
 相同 reward 的组仍按现有重采样规则处理；该实验应显式声明奖励配置。
-GRPO 标准差归一化会放大全赢组内部的小奖励差，因此系数小不等于梯度小。
+后续实验使用同一起始状态12局组内 center：`A_i = r_i - mean(r_group)`，不除标准差，也不做全局 center 或后续 whitening。相同 reward 精确返回0；不同速度的全赢组仍可能产生非零 advantage，不自动强制归零。历史冻结源码的标准差归一化配置保持不变。
 
 `rollout/win_rate` 和 `eval/<name>/win_rate` 始终是二元通关率。
 `mean_reward` 单独报告含 bonus 的平均奖励，`success_steps_median` 仅统计成功局。

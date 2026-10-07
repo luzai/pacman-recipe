@@ -1,9 +1,8 @@
-"""Normalize complete episode rewards before expanding their decisions."""
+"""Center complete episode rewards within each state before decision expansion."""
 
 from collections import defaultdict
 import math
 
-import torch
 
 
 def binary_reward(payload):
@@ -52,9 +51,12 @@ def group_advantages(rewards, *, success_speed_bonus=0.0):
         not math.isfinite(r) or not (r == 0.0 or 1.0 <= r <= 1.0 + success_speed_bonus) for r in rewards
     ):
         raise ValueError("expected 12 episode rewards within the declared success bonus range")
-    values = torch.tensor(rewards, dtype=torch.float32)
-    # Pinned slime: sample standard deviation (correction=1), epsilon 1e-6.
-    return ((values - values.mean()) / (values.std(correction=1) + 1e-6)).tolist()
+    # Constant shaped rewards must be exactly zero, including non-binary values.
+    if all(r == rewards[0] for r in rewards):
+        return [0.0] * 12
+    # Stable host reduction; no std scaling or cross-state normalization.
+    mean = math.fsum(rewards) / len(rewards)
+    return [float(r - mean) for r in rewards]
 
 
 def post_process_rewards(args, samples):
