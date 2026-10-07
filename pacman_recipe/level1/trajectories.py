@@ -708,7 +708,7 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
             if style == 'ascii_edward_v1':
                 actual = prompt_module.compact_ascii_edward_decision_prompt(context, candidates, constraint, context['ascii_map'], fallback_mode=fallback_mode)
             else:
-                actual = prompt_module.render_edward_decision_prompt(context, candidates, constraint, fallback_mode=fallback_mode)
+                actual = prompt_module.render_vision_edward_decision_prompt(context, candidates, constraint, fallback_mode=fallback_mode)
         else:
             actual = (
                 live_state_instruction(context)

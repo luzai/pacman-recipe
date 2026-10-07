@@ -79,12 +79,16 @@ def load_config(path):
 
 
 def runner_options(config: PacmanConfig):
+    from pacman_recipe.level1.prompts import prompt_contract_metadata
+    style = 'ascii_edward_v1' if config.observation_mode == 'ascii' else 'live_state_v3'
+    prompt = prompt_contract_metadata(style, edward_options=True,
+                                     fallback_mode=config.edward_fallback_mode)
     return dict(
         edward_options=True,
         edward_fallback_mode=config.edward_fallback_mode,
         enable_thinking=False,
-        image_prompt_style="ascii_edward_v1" if config.observation_mode == 'ascii' else "live_state_v3",
-        prompt_version="edward-ascii-option-code-v1" if config.observation_mode == 'ascii' else "edward-option-code-v2",
+        image_prompt_style=style,
+        prompt_version=prompt['prompt_version'],
         episode_life_mode="single_death",
         ghost_mode="normal",
         environment_max_steps=config.max_steps,

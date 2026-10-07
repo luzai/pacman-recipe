@@ -35,8 +35,10 @@ from ..actions import ActionParseError, parse_action
 from .level1_dataset import SUPPORTED_MAX_STEPS, validate_episode_row
 from .prompts import (
     build_image_messages,
+    layout_image_user_content,
     edward_system_prompt,
     render_edward_decision_prompt,
+    render_vision_edward_decision_prompt,
     crop_pacman_local_view,
     encode_png,
     image_count,
@@ -147,7 +149,7 @@ def _compact_edward_decision_prompt(
     constraint: ObjectiveTokenConstraint,
 ) -> str:
     """Render the exemplar's decision facts without its free-form reason."""
-    return render_edward_decision_prompt(
+    return render_vision_edward_decision_prompt(
         state_context, candidates, constraint,
         fallback_mode=state_context.get("edward_fallback_mode", "refuse"),
     )
@@ -898,24 +900,25 @@ class PacmanEpisodeRunner:
                     messages = build_image_messages(png, prompt_style=image_prompt_style, state_context=state_context)
                 if edward_options:
                     messages[0]["content"] = system_prompt
+                model_user_instruction = "".join(
+                    item["text"] for item in messages[1]["content"]
+                    if item.get("type") == "text")
                 if objective_constraint is not None:
-                    messages[1]["content"][0]["text"] = (
-                        _compact_edward_decision_prompt(
-                            state_context,
-                            option_candidates,
-                            objective_constraint,
-                        )
-                    )
+                    model_user_instruction = _compact_edward_decision_prompt(
+                        state_context, option_candidates, objective_constraint)
                     if ascii_observation:
                         from .ascii_observation import render_ascii_map
                         from .prompts import compact_ascii_edward_decision_prompt
-                        messages[1]['content'][0]['text'] = compact_ascii_edward_decision_prompt(
+                        model_user_instruction = compact_ascii_edward_decision_prompt(
                             state_context, option_candidates, objective_constraint,
                             render_ascii_map(planner.level, live_snapshot), fallback_mode=fallback_mode)
                         state_context["ascii_map"] = render_ascii_map(planner.level, live_snapshot)
-                model_user_instruction = str(
-                    messages[1]["content"][0]["text"]
-                )
+                if ascii_observation:
+                    messages[1]["content"][0]["text"] = model_user_instruction
+                else:
+                    messages[1]["content"] = layout_image_user_content(
+                        png, model_user_instruction, prompt_style=image_prompt_style,
+                        edward_options=objective_constraint is not None)
                 model_called = not (
                     edward_options and active_option is not None
                 )

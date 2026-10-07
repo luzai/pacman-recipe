@@ -59,7 +59,7 @@ enable_thinking: false
 validation_contract: sampled12_uniform_shaped
 reward_objective_contract: episode_return_group_v1
 image_prompt_style: live_state_v3
-prompt_version: edward-option-code-v2
+prompt_version: edward-option-code-v2+fixed-image-dynamic-v2
 action_protocol: edward-option-code-v1
 total_train_epochs: 100
 total_train_steps: null

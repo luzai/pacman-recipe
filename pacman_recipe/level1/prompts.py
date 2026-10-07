@@ -11,6 +11,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 from pacman_env.planner import validate_fallback_mode
+from .vision_prompt import VISION_LAYOUT_VERSION, vision_content
 from .legacy_prompts_v1 import (
     EDWARD_OPTION_CODE_V1_SYSTEM_PROMPT,
     EDWARD_OPTION_CODE_V1_USER_TEMPLATE,
@@ -355,7 +356,7 @@ def prompt_user_template(
             raise ValueError("ASCII Edward requires Edward options")
         return ASCII_EDWARD_USER_TEMPLATE + (EDWARD_RISK_USER_SUFFIX if fallback_mode == "risk_ranked" else "")
     return (
-        EDWARD_OPTION_CODE_V2_USER_TEMPLATE + (
+        VISION_EDWARD_USER_TEMPLATE + (
             EDWARD_RISK_USER_SUFFIX if fallback_mode == "risk_ranked" else ""
         )
         if edward_options
@@ -401,6 +402,10 @@ def prompt_contract_metadata(
         "system": system,
         "user_template": template,
         "renderer_source": inspect.getsource(renderer).replace("\r\n", "\n"),
+        "vision_layout": VISION_LAYOUT_VERSION,
+        "vision_layout_source": inspect.getsource(layout_image_user_content),
+        "vision_content_source": inspect.getsource(vision_content),
+        "vision_edward_renderer_source": inspect.getsource(render_vision_edward_decision_prompt) if edward_options else None,
     }
     if fallback_mode == "risk_ranked":
         fingerprint["base_renderer_source"] = inspect.getsource(
@@ -408,7 +413,7 @@ def prompt_contract_metadata(
         ).replace("\r\n", "\n")
     return {
         "action_protocol": protocol,
-        "prompt_version": version,
+        "prompt_version": f"{version}+{VISION_LAYOUT_VERSION}",
         "prompt_template_sha256": text_sha256(
             json.dumps(fingerprint, sort_keys=True, allow_nan=False)
         ),
@@ -421,7 +426,8 @@ def sent_prompt_sha256(system: str, user: str, image_sha256: str) -> str:
     """Canonical identity of the actual two text messages and attached image."""
     return text_sha256(
         json.dumps(
-            {"system": system, "user": user, "observation_png_sha256": image_sha256},
+            {"system": system, "user": user, "observation_png_sha256": image_sha256,
+             "vision_layout": VISION_LAYOUT_VERSION},
             sort_keys=True,
             separators=(",", ":"),
             allow_nan=False,
@@ -528,6 +534,60 @@ def png_data_url(png: bytes) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+VISION_EDWARD_FIXED_PREFIX = (
+    EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}", 1)[0]
+    + "Coordinates are [row,column], starting at 0. If the screenshot and "
+    "structured state disagree, trust the structured state.\n\n[CURRENT IMAGE]\n"
+)
+VISION_EDWARD_USER_TEMPLATE = (
+    VISION_EDWARD_FIXED_PREFIX
+    + "[CURRENT STATE]\n{decision_state}\n\n"
+    "[CANDIDATE OBJECTIVES]\n{candidate_rows}\n\n"
+    "[OUTPUT]\nUse only the candidates shown for this turn. Return exactly one "
+    "code from [{option_codes}]; nothing else."
+)
+
+
+def render_vision_edward_decision_prompt(
+    state_context, candidates, constraint, *, fallback_mode="refuse"
+):
+    """Preserve decision facts and fallback evidence in separate visual sections."""
+    base = render_edward_decision_prompt(
+        state_context, candidates, constraint, fallback_mode=fallback_mode
+    )
+    prefix = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}", 1)[0]
+    serialized_state, tail = base[len(prefix):].split("\n", 1)
+    state = json.loads(serialized_state)
+    rows = state.pop("c")
+    footer = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}\n", 1)[1].format(
+        option_codes=",".join(constraint.rendered_choices)
+    )
+    if not tail.startswith(footer):
+        raise ValueError("Edward output instructions changed")
+    return VISION_EDWARD_USER_TEMPLATE.format(
+        decision_state=json.dumps(state, separators=(",", ":"), allow_nan=False),
+        candidate_rows="\n".join(json.dumps(row, separators=(",", ":"), allow_nan=False) for row in rows),
+        option_codes=",".join(constraint.rendered_choices),
+    ) + tail[len(footer):]
+
+
+def layout_image_user_content(png, instruction, *, prompt_style, edward_options=False):
+    """Split only known invariant prefixes; preserve exact concatenated text."""
+    fixed = ""
+    if edward_options:
+        fixed = VISION_EDWARD_FIXED_PREFIX
+    elif prompt_style == "live_state_v3":
+        fixed = LIVE_STATE_V3_USER_INSTRUCTION + "\n\n"
+    else:
+        # These primitive styles contain only invariant instructions.
+        fixed = instruction
+    if fixed and not instruction.startswith(fixed):
+        raise ValueError("vision instruction does not match its fixed prefix")
+    return vision_content(
+        {"type": "image_url", "image_url": {"url": png_data_url(png)}},
+        fixed_text=fixed, dynamic_text=instruction[len(fixed):])
+
+
 def build_image_messages(
     png: bytes,
     *,
@@ -546,13 +606,8 @@ def build_image_messages(
         {"role": "system", "content": system_prompt},
         {
             "role": "user",
-            "content": [
-                {"type": "text", "text": user_instruction},
-                {
-                    "type": "image_url",
-                    "image_url": {"url": png_data_url(png)},
-                },
-            ],
+            "content": layout_image_user_content(
+                png, user_instruction, prompt_style=prompt_style),
         },
     ]
 
@@ -582,8 +637,28 @@ ASCII_EDWARD_SYSTEM_PROMPT = EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT.replace(
     "do not infer flashing from a single screenshot.",
     "Use the structured ghost state to determine whether a ghost is vulnerable.",
 )
-ASCII_EDWARD_USER_TEMPLATE = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.replace(
-    "{decision_state}", "{ascii_map}\n{decision_state}", 1
+ASCII_EDWARD_USER_TEMPLATE = (
+    "Choose one tactical objective.\n\n"
+    "[CURRENT MAP]\n"
+    "Coordinates are [row,column], starting at 0. If the map and structured "
+    "state disagree, trust the structured state.\n"
+    "{ascii_map}\n\n"
+    "[CURRENT STATE]\n"
+    "Keys: p=Pac-Man [row,column], f=facing, pellets=normal+power pellets "
+    "remaining, maze=[rows,columns], ghosts=[[id,state,position]], "
+    "edible_ticks=vulnerability time, last=previous action.\n"
+    "{decision_state}\n\n"
+    "[CANDIDATE OBJECTIVES]\n"
+    "Each row: [code,id,strategy,target,first_action,distance,commit,safety,exits,entity].\n"
+    "Each candidate describes a target and its navigation plan. "
+    "first_action=the first move the navigator executes if you select this candidate; "
+    "screen-absolute U=up, D=down, L=left, R=right. Select its code. "
+    "Metrics: distance=route steps, commit=max executed moves, larger "
+    "safety/exits are better, entity=ELIMINATE ghost id.\n"
+    "{candidate_rows}\n\n"
+    "[OUTPUT]\n"
+    "Use only the candidates shown for this turn. Return exactly one "
+    "code from [{option_codes}]; nothing else."
 )
 
 
@@ -596,7 +671,7 @@ def compact_ascii_edward_decision_prompt(
     state_context: Mapping[str, Any], candidates: Sequence[Any], constraint: Any,
     map_text: str, *, fallback_mode: str = "refuse",
 ) -> str:
-    """Retain the exact candidate/state/risk serialization; insert current map."""
+    """Separate map, state and candidate rows without changing their evidence."""
     from .ascii_observation import ASCII_MAP_HEADER
     if not map_text.startswith(ASCII_MAP_HEADER + "\n"):
         raise ValueError("expected rendered current-frame ASCII map")
@@ -606,7 +681,24 @@ def compact_ascii_edward_decision_prompt(
     prefix = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}", 1)[0]
     if not base.startswith(prefix):
         raise ValueError("Edward template prefix changed")
-    return prefix + map_text + "\n" + base[len(prefix):]
+    serialized_state, tail = base[len(prefix):].split("\n", 1)
+    state = json.loads(serialized_state)
+    candidate_rows = state.pop("c")
+    footer = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}\n", 1)[1].format(
+        option_codes=",".join(constraint.rendered_choices)
+    )
+    if not tail.startswith(footer):
+        raise ValueError("Edward output instructions changed")
+    rendered = ASCII_EDWARD_USER_TEMPLATE.format(
+        ascii_map=map_text,
+        decision_state=json.dumps(state, separators=(",", ":"), allow_nan=False),
+        candidate_rows="\n".join(
+            json.dumps(row, separators=(",", ":"), allow_nan=False)
+            for row in candidate_rows
+        ),
+        option_codes=",".join(constraint.rendered_choices),
+    )
+    return rendered + tail[len(footer):]
 
 
 def ascii_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse") -> dict[str, str]:

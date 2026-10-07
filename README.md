@@ -19,6 +19,21 @@ Primitive 优先生存，再在安全的开放方向中收集普通豆子；仅�
 在方向同样安全且有助于吃豆时参考历史，允许反向或重复出口。两套输出协议保持各自独立。
 这些文本变更会更新 prompt 指纹；新运行需要重新验证数据合约及真实 processor 的 token budget。
 
+未来 VLM 运行使用 `fixed-image-dynamic-v2` 布局：system 规则，随后 user 中的
+固定字段说明 → 当前截图 → 当前状态 → 候选目标 → 输出。ASCII 使用对应的地图、
+状态、候选目标、输出四个分区；两者状态字段、候选顺序、动作代码及风险回退规则
+保持一致，候选从状态 JSON 中拆出、每行一项。prompt 指纹已更新，新数据需重新
+生成并验证合约。
+布局纳入 VLM prompt 版本和指纹，旧运行应使用其原始源码快照。
+后续 visual-grounding SFT/评估可共用
+`pacman_recipe.level1.vision_prompt.grounding_messages(system, question, answer_format=...)`，
+返回 processor chat-template 输入；图片由 processor 的 `images` 参数传入。
+默认 grounding prompt 只读当前图像的可见事实，使用从左上角0开始的[row,column]
+网格坐标，问题和输出格式单独分区；整图、crop、cells等题仍使用各自指定的JSON
+答案格式，不加入战术候选或隐藏状态标签。`fixed_text`可显式指定数据集图例及约定。
+训练和评估必须使用同一固定说明及图像预处理配置。已有运行的 SFT 源码与数据不修改。
+Radix Cache 的收益需实测；RL 权重更新必须使旧 KV cache 失效。
+
 下方固定 SHA 和 release 分支对应历史发布。新的名称与 prompt 改动只有在包含
 本次迁移的提交中才可用；复现旧发布时使用该提交自带的 README 和入口。
 

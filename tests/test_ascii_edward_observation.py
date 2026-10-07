@@ -1,6 +1,7 @@
 from copy import deepcopy
 from types import SimpleNamespace
 import ast
+import json
 import subprocess
 
 import pytest
@@ -41,8 +42,11 @@ def test_future_and_hidden_state_cannot_change_map_or_json():
     constraint=SimpleNamespace(rendered_choices=[])
     result=prompts.compact_ascii_edward_decision_prompt(context,[],constraint,before)
     assert 'path_remaining' not in result and 'velocity' not in result and 'direction' not in result
-    old=prompts.compact_edward_decision_prompt(context,[],constraint)
-    assert result.replace(before+'\n','',1)==old
+    assert before+'\n\n[CURRENT STATE]' in result
+    state_line=result.split('[CURRENT STATE]\n',1)[1].splitlines()[1]
+    assert json.loads(state_line)['ghosts']==[
+        [g['id'],g['state'],g['position']] for g in state['ghosts']]
+    assert '"c":' not in state_line
 
 
 def test_only_approved_system_replacements_and_new_identity():
@@ -103,5 +107,35 @@ def test_risk_suffix_and_candidate_bytes_preserved():
     constraint=SimpleNamespace(rendered_choices=['A'],code_for_option=lambda _: 'A')
     old=prompts.render_edward_decision_prompt({},[candidate],constraint,fallback_mode='risk_ranked')
     new=prompts.compact_ascii_edward_decision_prompt({},[candidate],constraint,board,fallback_mode='risk_ranked')
-    assert new.replace(board+'\n','',1)==old
+    old_state=json.loads(old.splitlines()[2])
+    new_state=json.loads(new.split('[CURRENT STATE]\n',1)[1].splitlines()[1])
+    candidate_line=new.split('[CANDIDATE OBJECTIVES]\n',1)[1].splitlines()[2]
+    assert new_state=={k:v for k,v in old_state.items() if k!='c'}
+    assert json.loads(candidate_line)==old_state['c'][0]
+    assert new[new.index(' RISK_FALLBACK is not safety-approved.'):]==old[
+        old.index(' RISK_FALLBACK is not safety-approved.'):]
     assert 'motion=clear_estimate/unknown/collision_predicted' in new
+
+
+def test_sections_multiple_candidate_rows_and_layout_fingerprint():
+    level,state=example()
+    board=render_ascii_map(level,state)
+    context=dict(pacman_position=[1,0],facing='R',pellets_remaining=3,
+        maze_size=[2,6],ghosts=state['ghosts'],edible_ticks=16,last_action='U')
+    candidates=[SimpleNamespace(option_id=f'C{i}',strategy='COLLECT',target=(0,i),
+        first_action='R',route_distance=i,commit_moves=1,safety_margin=2,
+        future_safe_exits=3,entity_id=None) for i in (1,2)]
+    constraint=SimpleNamespace(rendered_choices=['B','C'],
+        code_for_option=lambda x: {'C1':'B','C2':'C'}[x])
+    rendered=prompts.compact_ascii_edward_decision_prompt(context,candidates,constraint,board)
+    labels=['[CURRENT MAP]','[CURRENT STATE]','[CANDIDATE OBJECTIVES]','[OUTPUT]']
+    assert [rendered.index(label) for label in labels]==sorted(rendered.index(label) for label in labels)
+    assert board+'\n\n[CURRENT STATE]' in rendered
+    rows=rendered.split('[CANDIDATE OBJECTIVES]\n',1)[1].split('\n\n[OUTPUT]',1)[0].splitlines()[2:]
+    old=prompts.compact_edward_decision_prompt(context,candidates,constraint)
+    assert [json.loads(row) for row in rows]==json.loads(old.splitlines()[2])['c']
+    assert rendered.endswith('code from [B,C]; nothing else.')
+    metadata=prompts.prompt_contract_metadata('ascii_edward_v1',edward_options=True)
+    assert metadata['user_prompt_template_sha256']==prompts.text_sha256(prompts.ASCII_EDWARD_USER_TEMPLATE)
+    assert metadata['user_prompt_template_sha256']!=prompts.text_sha256(
+        prompts.EDWARD_OPTION_CODE_V2_USER_TEMPLATE.replace('{decision_state}','{ascii_map}\n{decision_state}',1))

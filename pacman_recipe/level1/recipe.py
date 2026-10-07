@@ -10,6 +10,7 @@ from typing import Any, Mapping
 import yaml
 
 from pacman_env.env.ghost_modes import validate_ghost_mode
+from .vision_prompt import VISION_LAYOUT_VERSION
 
 
 def normalize_episode_life_mode(mode: str) -> str:
@@ -19,8 +20,9 @@ def normalize_episode_life_mode(mode: str) -> str:
 
 DIRECT_ACTION_PROTOCOL = "direct-open-action-token-v1"
 EDWARD_OPTION_PROTOCOL = "edward-option-code-v1"
-DIRECT_PROMPT_VERSION = "live-state-direct-action-v3"
-EDWARD_PROMPT_VERSION = "edward-option-code-v2"
+
+DIRECT_PROMPT_VERSION = f"live-state-direct-action-v3+{VISION_LAYOUT_VERSION}"
+EDWARD_PROMPT_VERSION = f"edward-option-code-v2+{VISION_LAYOUT_VERSION}"
 
 
 def _canonical_sha256(value: Any) -> str:
