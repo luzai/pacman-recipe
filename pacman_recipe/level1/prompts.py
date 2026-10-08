@@ -104,8 +104,9 @@ LIVE_STATE_V3_SYSTEM_PROMPT = (
 )
 LIVE_STATE_V3_USER_INSTRUCTION = (
     "You are playing Classic Pacman. One current screenshot.\n"
-    "Yellow circle with a mouth = Pac-Man. Blue lines = walls. Small gold "
-    "coins = pellets to eat.\n"
+    # v4: shape-only legend; maze palettes differ by level (v3 text in legacy_prompts_v1).
+    "Pac-Man = the round sprite with a mouth. Walls = the outlined maze lines. "
+    "Small dots = pellets to eat; large dots = power pellets.\n"
     "Directions are screen-absolute: U=top, D=bottom, L=left, R=right."
 )
 
@@ -391,7 +392,7 @@ def prompt_contract_metadata(
         )
         protocol = "direct-open-action-token-v1"
         version = (
-            "live-state-direct-action-v3"
+            "live-state-direct-action-v4"
             if prompt_style == "live_state_v3"
             else prompt_style
         )

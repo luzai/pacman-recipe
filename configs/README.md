@@ -17,7 +17,7 @@ environment-step** horizon, not 512 model calls or option selections.
 | Ghost mode | `disabled` | `normal` |
 | Episode lives | First death ends episode | Three reserve lives; fourth death is game over |
 | Action protocol | `direct-open-action-token-v1` | `edward-option-code-v1` |
-| Prompt version | `live-state-direct-action-v3` | `edward-option-code-v2` |
+| Prompt version | `live-state-direct-action-v4` | `edward-option-code-v2` |
 | Output | One legal `U/D/L/R`; no `S`, JSON, or Edward | One advertised option code mapped to `C*/A*/E*`; no direction or JSON |
 | `edward_options` | `false` | `true` |
 | `action_token_choice` / `open_action_mask` | `true` / `true` | `false` / `false`; dynamic option-candidate mask instead |

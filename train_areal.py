@@ -259,7 +259,7 @@ def _validate_backplay_contract(config) -> None:
     required = {
         "recipe_version": "maapacman-adaptive-backplay-v1",
         "action_protocol": "direct-open-action-token-v1",
-        "prompt_version": "live-state-direct-action-v3",
+        "prompt_version": "live-state-direct-action-v4",
         "reward_objective_contract": "episode_return_group_v1",
         "edward_options": False,
         "open_action_mask": True,

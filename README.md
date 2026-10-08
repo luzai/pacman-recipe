@@ -202,7 +202,7 @@ CUDA_VISIBLE_DEVICES='' "$PYTHON" -m pytest -q
 | 每局底层 `env.step` 上限 | 512 | 512 |
 | 动作 / harness | 单 token `U/D/L/R`，只允许当前可通行方向；不构造或调用 Edward | 单 token advertised option code，经 Edward 映射并执行 `C*/A*/E*` 候选 |
 | `action_protocol` | `direct-open-action-token-v1` | `edward-option-code-v1` |
-| `prompt_version` | `live-state-direct-action-v3` | `edward-option-code-v2` |
+| `prompt_version` | `live-state-direct-action-v4` | `edward-option-code-v2` |
 | `edward_options` | `false` | `true` |
 | `action_token_choice` / `open_action_mask` | `true` / `true` | `false` / `false`，使用有效 option 候选 mask |
 | reward objective | `step_local_raw_v1` | `episode_return_group_v1` |

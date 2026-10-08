@@ -49,7 +49,7 @@ def test_stage_prompt_templates_identify_actual_distinct_protocols():
     c1 = prompt_contract_metadata("live_state_v3", edward_options=False)
     c2 = prompt_contract_metadata("live_state_v3", edward_options=True)
     assert c1["action_protocol"] == "direct-open-action-token-v1"
-    assert c1["prompt_version"] == "live-state-direct-action-v3"
+    assert c1["prompt_version"] == "live-state-direct-action-v4"
     assert c2["action_protocol"] == "edward-option-code-v1"
     assert c2["prompt_version"] == "edward-option-code-v2"
     assert c1["prompt_template_sha256"] != c2["prompt_template_sha256"]
@@ -149,7 +149,7 @@ def test_c1_runtime_does_not_construct_edward_and_emits_step_rewards(monkeypatch
         open_action_mask=True,
         action_token_choice=True,
         action_protocol="direct-open-action-token-v1",
-        prompt_version="live-state-direct-action-v3",
+        prompt_version="live-state-direct-action-v4",
         reward_objective_contract="step_local_raw_v1",
         use_base_reward=False,
         normal_pellet_reward=51.0,
@@ -201,7 +201,7 @@ def test_runtime_rejects_mismatched_harness_row_before_environment(monkeypatch):
         image_prompt_style="live_state_v3",
         open_action_mask=True,
         action_protocol="direct-open-action-token-v1",
-        prompt_version="live-state-direct-action-v3",
+        prompt_version="live-state-direct-action-v4",
     )
     row = make_episode_row(28, split="train", action_protocol="edward-option-code-v1")
     with pytest.raises(ValueError, match="dataset action_protocol"):

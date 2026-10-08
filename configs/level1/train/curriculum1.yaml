@@ -39,7 +39,7 @@ enable_thinking: false
 validation_contract: sampled12_uniform_shaped
 reward_objective_contract: step_local_raw_v1
 image_prompt_style: live_state_v3
-prompt_version: live-state-direct-action-v3+fixed-image-dynamic-v2
+prompt_version: live-state-direct-action-v4+fixed-image-dynamic-v2
 action_protocol: direct-open-action-token-v1
 total_train_epochs: 5
 # Null means the complete 100-update run. The release CLI sets this field only

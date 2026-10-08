@@ -21,7 +21,7 @@ def make_workflow():
             env_factory=OneStepEnv, open_action_mask=True,
             tokenizer_path="test-tokenizer", image_prompt_style="live_state_v3",
             action_protocol="direct-open-action-token-v1",
-            prompt_version="live-state-direct-action-v3",
+            prompt_version="live-state-direct-action-v4",
         )
 
 
@@ -101,7 +101,7 @@ def test_parse_failure_after_a_death_records_the_post_death_lives():
             env_factory=PygamePacmanEnv, open_action_mask=True,
             tokenizer_path="test-tokenizer", image_prompt_style="live_state_v3",
             action_protocol="direct-open-action-token-v1",
-            prompt_version="live-state-direct-action-v3",
+            prompt_version="live-state-direct-action-v4",
             episode_life_mode="original_three_lives",
         )
     asyncio.run(workflow.run(row, scripted_actions=["L", "R"] * 12 + ["L", "U"]))

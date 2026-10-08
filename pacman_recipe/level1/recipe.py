@@ -21,7 +21,7 @@ def normalize_episode_life_mode(mode: str) -> str:
 DIRECT_ACTION_PROTOCOL = "direct-open-action-token-v1"
 EDWARD_OPTION_PROTOCOL = "edward-option-code-v1"
 
-DIRECT_PROMPT_VERSION = f"live-state-direct-action-v3+{VISION_LAYOUT_VERSION}"
+DIRECT_PROMPT_VERSION = f"live-state-direct-action-v4+{VISION_LAYOUT_VERSION}"
 EDWARD_PROMPT_VERSION = f"edward-option-code-v2+{VISION_LAYOUT_VERSION}"
 
 

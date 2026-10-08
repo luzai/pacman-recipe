@@ -23,7 +23,7 @@ does not establish global validation-best retention.
 
 - C1: ghost-disabled, no Edward in data/training/native evaluation; one legal
   U/D/L/R token under `direct-open-action-token-v1`, with
-  `live-state-direct-action-v3+fixed-image-dynamic-v2` prompts. `step_local_raw_v1` uses each action's
+  `live-state-direct-action-v4+fixed-image-dynamic-v2` prompts (v4 replaced color words with a shape-only legend). `step_local_raw_v1` uses each action's
   own shaped reward, `reward_norm/adv_norm=null`, and `reward_clip=.inf`.
 - C2: normal ghosts, advertised Edward option-code token under
   `edward-option-code-v1`; complete C1 initialization and fresh optimizer/scheduler.
