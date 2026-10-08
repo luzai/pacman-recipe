@@ -255,7 +255,9 @@ def main() -> None:
 
     from transformers import AutoProcessor
 
-    processor = AutoProcessor.from_pretrained(args.model_path, local_files_only=True)
+    from pacman_recipe.level1.vision_prompt import configure_image_processor
+
+    processor = configure_image_processor(AutoProcessor.from_pretrained(args.model_path, local_files_only=True))
     observation, source = capture_c1_image(args.pacman_python_root)
     result = measure(processor, observation, max_input_tokens=args.max_input_tokens)
     result["image_source"] = source

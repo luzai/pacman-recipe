@@ -2,6 +2,26 @@
 
 VISION_LAYOUT_VERSION = "fixed-image-dynamic-v2"
 
+# One visual token per 16px board cell: Qwen3.5 merges 2x2 patches of 16px, so the
+# 336x400 screenshot must be resized 2x (672x800 = 537600 px). The default
+# preprocessor minimum (65536) leaves it unscaled, one token per 2x2 cells.
+# Training (HF processor) and SGLang inference must both use this value.
+VISION_IMAGE_MIN_PIXELS = 537600
+VISION_IMAGE_MAX_PIXELS = 16777216
+VISION_IMAGE_CONTRACT = f"qwen-min-pixels-{VISION_IMAGE_MIN_PIXELS}"
+
+
+def configure_image_processor(processor):
+    """Pin the Pacman image resolution on an HF processor; returns the processor."""
+    image_processor = getattr(processor, "image_processor", None)
+    if image_processor is None:
+        raise ValueError("processor has no image processor")
+    size = dict(image_processor.size)
+    size["shortest_edge"] = VISION_IMAGE_MIN_PIXELS
+    size["longest_edge"] = max(VISION_IMAGE_MIN_PIXELS, VISION_IMAGE_MAX_PIXELS)
+    image_processor.size = size
+    return processor
+
 GROUNDING_PROMPT_VERSION = "visual-grounding-sections-v1"
 GROUNDING_SYSTEM = (
     "You read visible facts from the current Pacman screenshot. "

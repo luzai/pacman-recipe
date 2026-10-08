@@ -101,14 +101,28 @@ def check_model(directory):
         if path.parent != directory.resolve() or not path.is_file():
             raise ValueError("model shard missing or outside model directory")
     from transformers import AutoProcessor
+    from pacman_recipe.level1.vision_prompt import VISION_IMAGE_CONTRACT, configure_image_processor
 
-    processor = AutoProcessor.from_pretrained(directory, local_files_only=True)
+    processor = configure_image_processor(AutoProcessor.from_pretrained(directory, local_files_only=True))
     return {
         "path": str(directory.resolve()),
         "shards": shards,
         "processor_class": type(processor).__name__,
         "image_size": dict(processor.image_processor.size),
+        "image_contract": VISION_IMAGE_CONTRACT,
+        "screenshot_grid_thw": check_image_contract(processor),
     }
+
+
+def check_image_contract(processor):
+    """A 336x400 screenshot must become 25x21 merged tokens: one per board cell."""
+    from PIL import Image
+
+    out = processor.image_processor(images=[Image.new("RGB", (336, 400))], return_tensors="pt")
+    grid = out["image_grid_thw"].tolist()
+    if grid != [[1, 50, 42]]:
+        raise ValueError(f"screenshot image grid {grid} != [[1, 50, 42]]; check min_pixels")
+    return grid
 
 
 def check_runtime():

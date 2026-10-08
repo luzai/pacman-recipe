@@ -216,10 +216,12 @@ def _episode_pool(workers):
 def _worker_tokenizer_and_processor(hf_checkpoint):
     # Same loaders as slime's GenerateState in the rollout process.
     from slime.utils.processing_utils import load_processor, load_tokenizer
+    from pacman_recipe.level1.vision_prompt import configure_image_processor
 
+    # Training pixel_values/input_ids must match SGLang's resolution (qwen35 processor).
     return (
         load_tokenizer(hf_checkpoint, trust_remote_code=True),
-        load_processor(hf_checkpoint, trust_remote_code=True),
+        configure_image_processor(load_processor(hf_checkpoint, trust_remote_code=True)),
     )
 
 
