@@ -734,6 +734,13 @@ class TrajectoryAuditError(ValueError):
         self.payload = payload
 
 
+def expected_lives_after_step(lives: int, death: bool, score_before: int, score_after: int) -> int:
+    """Mirror pinned pacman.pyw AddToScore, using already audited score evidence."""
+    awards = sum(score_before < threshold <= score_after
+                 for threshold in (25000, 50000, 100000, 150000))
+    return max(0, lives + awards - int(death))
+
+
 def audit_trajectory(payload: Mapping[str, Any]) -> None:
     missing = REQUIRED_ENV_FIELDS - payload.keys()
     if missing:
@@ -853,6 +860,7 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
     audited_deaths = int(restart["death_count"]) if restart is not None else 0
     previous_env_step = int(restart["source_step"]) if restart is not None else 0
     for index, step in enumerate(steps, 1):
+        score_before_step = previous_score
         if not isinstance(step, Mapping):
             raise ValueError(f"trajectory step {index} must be an object")
         step_missing = REQUIRED_STEP_FIELDS - step.keys()
@@ -932,7 +940,9 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
             lives_after = int(step["lives_after_step"])
             if lives < 0 or lives_after < 0:
                 raise ValueError("trajectory lives cannot be negative")
-            expected_lives_after = max(0, lives - int(death))
+            expected_lives_after = expected_lives_after_step(
+                lives, death, score_before_step, previous_score
+            )
             if lives_after != expected_lives_after:
                 raise ValueError(
                     "trajectory lives do not reconcile with death event "
