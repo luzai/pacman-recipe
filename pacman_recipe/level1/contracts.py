@@ -66,10 +66,14 @@ def repository_identity(path):
 
 def make_episode_record(
     seed, *, split, recipe_root, game_root, backend_root, backend="slime", max_steps=512,
-    observation_mode="image", edward_fallback_mode="refuse"
+    observation_mode="image", edward_fallback_mode="refuse", ascii_map_format="packed"
 ):
     if observation_mode not in {'image', 'ascii'}:
         raise ValueError('Unsupported observation mode')
+    if ascii_map_format not in ("packed", "spaced") or (ascii_map_format == "spaced" and observation_mode != "ascii"):
+        raise ValueError("ascii_map_format must be packed, or spaced with observation_mode=ascii")
+    style = ("live_state_v3" if observation_mode != "ascii" else
+             "ascii_edward_spaced_v1" if ascii_map_format == "spaced" else "ascii_edward_v1")
     if (
         backend not in {"slime", "areal"}
         or split not in {"train", "validation", "test"}
@@ -117,7 +121,7 @@ def make_episode_record(
         training_backend=backend,
         environment=environment,
         source_revisions=sources,
-        prompt=prompt_contract_metadata("ascii_edward_v1" if observation_mode == 'ascii' else "live_state_v3",
+        prompt=prompt_contract_metadata(style,
                                         edward_options=True, fallback_mode=edward_fallback_mode),
     )
 
@@ -142,7 +146,7 @@ def validate_episode_record(record, *, expected_sources=None):
             if len(value) != length or any(c not in "0123456789abcdef" for c in value):
                 raise ValueError("invalid source hash")
     known_prompts = [prompt_contract_metadata(style, edward_options=True, fallback_mode=mode)
-                     for style in ("live_state_v3", "ascii_edward_v1") for mode in ("refuse", "risk_ranked")]
+                     for style in ("live_state_v3", "ascii_edward_v1", "ascii_edward_spaced_v1") for mode in ("refuse", "risk_ranked")]
     if record.get("prompt") not in known_prompts:
         raise ValueError("prompt contract changed; regenerate data")
     env = record["environment"]

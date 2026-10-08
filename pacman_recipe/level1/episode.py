@@ -477,7 +477,8 @@ class PacmanEpisodeRunner:
             options.get("image_prompt_style", "minimal_v1")
         )
         from .text_observation import text_sent_prompt_sha256
-        ascii_observation = image_prompt_style == 'ascii_edward_v1'
+        from .prompts import ASCII_STYLES
+        ascii_observation = image_prompt_style in ASCII_STYLES
         system_prompt, user_instruction = prompt_text(image_prompt_style)
         scripted = list(options.get("scripted_actions") or [])
         scripted_objectives = list(options.get("scripted_objectives") or [])
@@ -498,8 +499,8 @@ class PacmanEpisodeRunner:
                     f"{EDWARD_OPTION_CONSTRAINT}"
                 )
             if ascii_observation:
-                from .prompts import ascii_edward_system_prompt
-                system_prompt = ascii_edward_system_prompt(fallback_mode)
+                from .prompts import ascii_system_prompt_for
+                system_prompt = ascii_system_prompt_for(image_prompt_style, fallback_mode)
             else:
                 system_prompt = edward_system_prompt(fallback_mode)
         if edward_options and scripted:
@@ -784,7 +785,7 @@ class PacmanEpisodeRunner:
                         "live environment reported no open movement actions"
                     )
                 state_context = None
-                if image_prompt_style in ("live_state_v3", "ascii_edward_v1"):
+                if image_prompt_style in ("live_state_v3", "ascii_edward_v1", "ascii_edward_spaced_v1"):
                     position = (
                         int(previous_info["pacman_position"][0]),
                         int(previous_info["pacman_position"][1]),
@@ -886,8 +887,8 @@ class PacmanEpisodeRunner:
                         }
                     )
                 if ascii_observation:
-                    from .ascii_observation import render_ascii_map
-                    state_context['ascii_map'] = render_ascii_map(planner.level, live_snapshot)
+                    from .prompts import render_ascii_map_for
+                    state_context['ascii_map'] = render_ascii_map_for(image_prompt_style, planner.level, live_snapshot)
                     messages = [dict(role='system', content=system_prompt),
                                 dict(role='user', content=[dict(type='text', text='')])]
                 else:
@@ -901,12 +902,11 @@ class PacmanEpisodeRunner:
                     model_user_instruction = _compact_edward_decision_prompt(
                         state_context, option_candidates, objective_constraint)
                     if ascii_observation:
-                        from .ascii_observation import render_ascii_map
-                        from .prompts import compact_ascii_edward_decision_prompt
-                        model_user_instruction = compact_ascii_edward_decision_prompt(
-                            state_context, option_candidates, objective_constraint,
-                            render_ascii_map(planner.level, live_snapshot), fallback_mode=fallback_mode)
-                        state_context["ascii_map"] = render_ascii_map(planner.level, live_snapshot)
+                        from .prompts import ascii_decision_prompt_for, render_ascii_map_for
+                        model_user_instruction = ascii_decision_prompt_for(
+                            image_prompt_style, state_context, option_candidates, objective_constraint,
+                            render_ascii_map_for(image_prompt_style, planner.level, live_snapshot), fallback_mode=fallback_mode)
+                        state_context["ascii_map"] = render_ascii_map_for(image_prompt_style, planner.level, live_snapshot)
                 if ascii_observation:
                     messages[1]["content"][0]["text"] = model_user_instruction
                 else:

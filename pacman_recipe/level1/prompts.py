@@ -207,6 +207,8 @@ USER_INSTRUCTION = MINIMAL_V1_USER_INSTRUCTION
 
 
 def prompt_text(prompt_style: str) -> tuple[str, str]:
+    if prompt_style == "ascii_edward_spaced_v1":
+        return ASCII_SPACED_EDWARD_SYSTEM_PROMPT, ASCII_EDWARD_USER_TEMPLATE
     if prompt_style == "ascii_edward_v1":
         return ASCII_EDWARD_SYSTEM_PROMPT, ASCII_EDWARD_USER_TEMPLATE
     if prompt_style == "minimal_v1":
@@ -284,6 +286,10 @@ def prompt_user_template(
     prompt_style: str, *, edward_options: bool, fallback_mode: str = "refuse"
 ) -> str:
     validate_fallback_mode(fallback_mode, edward_options=edward_options)
+    if prompt_style == "ascii_edward_spaced_v1":
+        if not edward_options:
+            raise ValueError("ASCII Edward requires Edward options")
+        return ASCII_EDWARD_USER_TEMPLATE + (EDWARD_RISK_USER_SUFFIX if fallback_mode == "risk_ranked" else "")
     if prompt_style == "ascii_edward_v1":
         if not edward_options:
             raise ValueError("ASCII Edward requires Edward options")
@@ -305,6 +311,10 @@ def prompt_contract_metadata(
     This is a template fingerprint, not a claim that per-turn prompts are equal.
     Trajectories separately fingerprint the exact rendered messages and image.
     """
+    if prompt_style == "ascii_edward_spaced_v1":
+        if not edward_options:
+            raise ValueError("ASCII Edward requires Edward options")
+        return ascii_spaced_edward_prompt_contract_metadata(fallback_mode=fallback_mode)
     if prompt_style == "ascii_edward_v1":
         if not edward_options:
             raise ValueError("ASCII Edward requires Edward options")
@@ -575,5 +585,85 @@ def ascii_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse") -> d
         "prompt_version": f"edward-ascii-option-code-v2+{ASCII_EDWARD_LAYOUT_VERSION}",
         "prompt_template_sha256": text_sha256(json.dumps(fingerprint, sort_keys=True, allow_nan=False)),
         "system_prompt_sha256": text_sha256(ASCII_EDWARD_SYSTEM_PROMPT),
+        "user_prompt_template_sha256": text_sha256(template),
+    }
+
+
+# Spaced ASCII identity (ascii_edward_spaced_v1): same board, state, candidates and output rule as
+# ascii_edward_v1; only the map is laid out one cell per token (ascii_observation_spaced) and the
+# legend says so. ascii_edward_v1 text, renderers and fingerprints are untouched.
+ASCII_SPACED_EDWARD_STYLE = "ascii_edward_spaced_v1"
+ASCII_STYLES = ("ascii_edward_v1", ASCII_SPACED_EDWARD_STYLE)
+_PACKED_LEGEND_END = "= tunnel/level door, space empty."
+_SPACED_LEGEND_END = "= tunnel/level door, _ empty; map cells are separated by single spaces."
+if ASCII_EDWARD_SYSTEM_PROMPT.count(_PACKED_LEGEND_END) != 1:
+    raise RuntimeError("ASCII legend changed; update the spaced variant")
+ASCII_SPACED_EDWARD_SYSTEM_PROMPT = ASCII_EDWARD_SYSTEM_PROMPT.replace(_PACKED_LEGEND_END, _SPACED_LEGEND_END)
+
+
+def ascii_spaced_edward_system_prompt(fallback_mode: str = "refuse") -> str:
+    validate_fallback_mode(fallback_mode)
+    return ASCII_SPACED_EDWARD_SYSTEM_PROMPT
+
+
+def ascii_system_prompt_for(style: str, fallback_mode: str = "refuse") -> str:
+    if style == ASCII_SPACED_EDWARD_STYLE:
+        return ascii_spaced_edward_system_prompt(fallback_mode)
+    if style == "ascii_edward_v1":
+        return ascii_edward_system_prompt(fallback_mode)
+    raise ValueError(f"not an ASCII prompt style: {style!r}")
+
+
+def compact_ascii_spaced_edward_decision_prompt(
+    state_context: Mapping[str, Any], candidates: Sequence[Any], constraint: Any,
+    map_text: str, *, fallback_mode: str = "refuse",
+) -> str:
+    """ascii_edward_v1 rendering with the spaced map substituted for the packed one."""
+    from .ascii_observation_spaced import unspace_ascii_map
+    packed = unspace_ascii_map(map_text)
+    rendered = compact_ascii_edward_decision_prompt(
+        state_context, candidates, constraint, packed, fallback_mode=fallback_mode)
+    if rendered.count(packed) != 1:
+        raise ValueError("packed map must occur exactly once in the ASCII prompt")
+    return rendered.replace(packed, map_text, 1)
+
+
+def ascii_decision_prompt_for(style, state_context, candidates, constraint, map_text, *, fallback_mode="refuse"):
+    if style == ASCII_SPACED_EDWARD_STYLE:
+        return compact_ascii_spaced_edward_decision_prompt(
+            state_context, candidates, constraint, map_text, fallback_mode=fallback_mode)
+    if style == "ascii_edward_v1":
+        return compact_ascii_edward_decision_prompt(
+            state_context, candidates, constraint, map_text, fallback_mode=fallback_mode)
+    raise ValueError(f"not an ASCII prompt style: {style!r}")
+
+
+def render_ascii_map_for(style, level, snapshot):
+    from .ascii_observation import render_ascii_map
+    from .ascii_observation_spaced import render_ascii_map_spaced
+    if style == ASCII_SPACED_EDWARD_STYLE:
+        return render_ascii_map_spaced(level, snapshot)
+    if style == "ascii_edward_v1":
+        return render_ascii_map(level, snapshot)
+    raise ValueError(f"not an ASCII prompt style: {style!r}")
+
+
+def ascii_spaced_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse") -> dict[str, str]:
+    from . import ascii_observation, ascii_observation_spaced
+    template = prompt_user_template(ASCII_SPACED_EDWARD_STYLE, edward_options=True, fallback_mode=fallback_mode)
+    fingerprint = {
+        "system": ascii_spaced_edward_system_prompt(fallback_mode), "user_template": template,
+        "ascii_renderer_module": inspect.getsource(ascii_observation).replace("\r\n", "\n"),
+        "ascii_spacing_module": inspect.getsource(ascii_observation_spaced).replace("\r\n", "\n"),
+        "renderer_sources": [inspect.getsource(fn).replace("\r\n", "\n") for fn in (
+            compact_ascii_spaced_edward_decision_prompt, compact_ascii_edward_decision_prompt,
+            render_edward_decision_prompt, compact_edward_decision_prompt, risk_ranked_edward_decision_prompt,
+        )],
+    }
+    return {
+        "action_protocol": "edward-option-code-v1",
+        "prompt_version": f"edward-ascii-spaced-option-code-v2+{ASCII_EDWARD_LAYOUT_VERSION}",
+        "prompt_template_sha256": text_sha256(json.dumps(fingerprint, sort_keys=True, allow_nan=False)),
+        "system_prompt_sha256": text_sha256(ASCII_SPACED_EDWARD_SYSTEM_PROMPT),
         "user_prompt_template_sha256": text_sha256(template),
     }

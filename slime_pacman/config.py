@@ -24,10 +24,14 @@ class PacmanConfig:
     success_speed_bonus: float = 0.0
     edward_fallback_mode: str = "refuse"
     observation_mode: str = "image"
+    ascii_map_format: str = "packed"
 
     def __post_init__(self):
         if self.observation_mode not in {'image', 'ascii'}:
             raise ValueError('Unsupported observation mode')
+        if self.ascii_map_format not in ("packed", "spaced") or (
+                self.ascii_map_format == "spaced" and self.observation_mode != "ascii"):
+            raise ValueError("ascii_map_format must be packed, or spaced with observation_mode=ascii")
         if self.edward_fallback_mode not in {"refuse", "risk_ranked"}:
             raise ValueError("unsupported Edward fallback mode")
         if not math.isfinite(self.success_speed_bonus) or not 0 <= self.success_speed_bonus <= 0.1:
@@ -80,7 +84,8 @@ def load_config(path):
 
 def runner_options(config: PacmanConfig):
     from pacman_recipe.level1.prompts import prompt_contract_metadata
-    style = 'ascii_edward_v1' if config.observation_mode == 'ascii' else 'live_state_v3'
+    style = ("live_state_v3" if config.observation_mode != "ascii" else
+             "ascii_edward_spaced_v1" if config.ascii_map_format == "spaced" else "ascii_edward_v1")
     prompt = prompt_contract_metadata(style, edward_options=True,
                                      fallback_mode=config.edward_fallback_mode)
     return dict(
