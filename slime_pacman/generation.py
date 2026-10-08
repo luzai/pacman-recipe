@@ -102,6 +102,15 @@ class SGLangGenerator:
         self.processor, self.endpoint, self.client = processor, endpoint, client
         self.max_input_tokens = max_input_tokens
         self.serialized_processor = PacmanLogitProcessor.to_str()
+        import json, os
+        from pathlib import Path
+        from .fixed_prefix import validate_prefix
+        declaration = os.environ.get('PACMAN_CACHE_CONTRACT')
+        self.cache_contract = json.loads(Path(declaration).read_text()) if declaration else None
+        if self.cache_contract:
+            if self.observation_mode != 'ascii' or self.cache_contract['mode'] not in ('fixed', 'off'):
+                raise ValueError('Fixed cache experiment requires an explicit ASCII arm')
+            self.fixed_prefix = validate_prefix(self.cache_contract['prefix'])
 
     async def __call__(self, messages, constraint):
         import base64
@@ -113,6 +122,8 @@ class SGLangGenerator:
             prompt, ids, mm, image = process_request(self.processor, messages, constraint, self.max_input_tokens)
             image_url = _image_url(messages)
         support = constraint.allowed_token_ids
+        if self.cache_contract and tuple(ids[:len(self.fixed_prefix)]) != self.fixed_prefix:
+            raise ValueError('Actual decision prompt differs from frozen fixed prefix')
         body = {
             "rid": uuid.uuid4().hex,
             "text": prompt,
@@ -142,6 +153,10 @@ class SGLangGenerator:
         response.raise_for_status()
         result = response.json()
         meta = result["meta_info"]
+        if self.cache_contract:
+            expected = len(self.fixed_prefix) if self.cache_contract['mode'] == 'fixed' else 0
+            if meta.get('cached_tokens', 0) != expected:
+                raise ValueError('Actual cache hit differs from the frozen off/fixed arm')
         entries = meta.get("output_token_logprobs")
         candidates = meta.get("output_token_ids_logprobs")
         if not entries or len(entries) != 1 or not candidates or len(candidates) != 1:
