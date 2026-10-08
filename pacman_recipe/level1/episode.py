@@ -39,7 +39,6 @@ from .prompts import (
     edward_system_prompt,
     render_edward_decision_prompt,
     render_vision_edward_decision_prompt,
-    crop_pacman_local_view,
     encode_png,
     image_count,
     png_sha256,
@@ -709,12 +708,7 @@ class PacmanEpisodeRunner:
             final_info = previous_info
             while True:
                 turn: ModelTurn | None = None
-                model_image = (
-                    crop_pacman_local_view(image)
-                    if image_prompt_style
-                    in ("wall_avoidance_local_v2", "wall_avoidance_axis_v3")
-                    else image
-                )
+                model_image = image
                 png = b'' if ascii_observation else encode_png(model_image)
                 live_snapshot = env.snapshot()
                 option_candidates: tuple[PlannerCandidate, ...] = ()

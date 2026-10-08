@@ -174,7 +174,7 @@ class PacmanAgentConfig(PPOConfig):
         default="minimal_v1",
         metadata={
             "help": (
-                "Level-1 prompt contract: minimal_v1, live_static_v2, or "
+                "Level-1 prompt contract: minimal_v1 or "
                 "live_state_v3 (screenshot plus authoritative engine state "
                 "and bounded navigation history)."
             )

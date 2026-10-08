@@ -25,56 +25,6 @@ MINIMAL_V1_SYSTEM_PROMPT = (
 )
 MINIMAL_V1_USER_INSTRUCTION = "Choose the next action. Return exactly U, D, L, R, or S."
 
-WALL_AVOIDANCE_V1_SYSTEM_PROMPT = (
-    "You control Pacman from one screenshot. Pacman is the yellow circle and "
-    "blue lines are walls. Choose one movement direction that does not hit a "
-    "wall. Respond with exactly one token: U, D, L, or R. Do not explain."
-)
-WALL_AVOIDANCE_V1_USER_INSTRUCTION = (
-    "Choose one open movement direction. Return exactly U, D, L, or R."
-)
-
-WALL_AVOIDANCE_LOCAL_V2_SYSTEM_PROMPT = (
-    "You control Pacman from a local screenshot centered on Pacman. Pacman is "
-    "the large yellow circle near the center and cyan lines are walls. Choose "
-    "one movement direction with an open corridor immediately next to Pacman. "
-    "Directions are screen-absolute: U=up, D=down, L=left, R=right. Respond "
-    "with exactly one token: U, D, L, or R. Do not explain."
-)
-WALL_AVOIDANCE_LOCAL_V2_USER_INSTRUCTION = (
-    "Inspect the walls immediately around the centered Pacman. Choose one open "
-    "direction and return exactly U, D, L, or R."
-)
-
-WALL_AVOIDANCE_AXIS_V3_SYSTEM_PROMPT = (
-    "You control Pacman from a local screenshot centered on Pacman. Pacman is "
-    "the large yellow circle near the center and cyan lines are walls. Read the "
-    "corridor through Pacman's center: if it continues horizontally, choose L "
-    "or R; if it continues vertically, choose U or D. Never choose a direction "
-    "that crosses a cyan wall. Directions are screen-absolute: U=up, D=down, "
-    "L=left, R=right. Respond with exactly one token: U, D, L, or R. Do not "
-    "explain."
-)
-WALL_AVOIDANCE_AXIS_V3_USER_INSTRUCTION = (
-    "Use the visible corridor axis through centered Pacman to choose an open "
-    "direction. Return exactly U, D, L, or R."
-)
-
-LIVE_STATIC_V2_SYSTEM_PROMPT = (
-    "You are playing Classic Pacman from one current screenshot. Pacman is the "
-    "yellow circle with a mouth. Blue lines are walls. Small gold dots are "
-    "pellets to eat. Directions are screen-absolute: U=up, D=down, L=left, "
-    "R=right. Choose a direction that is visually open and moves Pacman along "
-    "a path toward a nearby pellet; never move through a blue wall. Re-evaluate "
-    "from every new screenshot. Prefer U, D, L, or R; use S only if no movement "
-    "direction appears safe. Respond with exactly one action token: U, D, L, R, "
-    "or S. Do not explain the action."
-)
-LIVE_STATIC_V2_USER_INSTRUCTION = (
-    "Inspect only this screenshot and choose the next action toward a reachable "
-    "nearby pellet. Return exactly U, D, L, R, or S."
-)
-
 SHARED_GAME_RULES = (
     "Use only the latest screenshot and authoritative structured state; if they conflict, "
     "trust the structured state for coordinates and ghost status. Do not import rules "
@@ -250,10 +200,6 @@ def render_edward_decision_prompt(
 
 PROMPT_STYLES = (
     "minimal_v1",
-    "wall_avoidance_v1",
-    "wall_avoidance_local_v2",
-    "wall_avoidance_axis_v3",
-    "live_static_v2",
     "live_state_v3",
 )
 SYSTEM_PROMPT = MINIMAL_V1_SYSTEM_PROMPT
@@ -265,20 +211,6 @@ def prompt_text(prompt_style: str) -> tuple[str, str]:
         return ASCII_EDWARD_SYSTEM_PROMPT, ASCII_EDWARD_USER_TEMPLATE
     if prompt_style == "minimal_v1":
         return MINIMAL_V1_SYSTEM_PROMPT, MINIMAL_V1_USER_INSTRUCTION
-    if prompt_style == "wall_avoidance_v1":
-        return WALL_AVOIDANCE_V1_SYSTEM_PROMPT, WALL_AVOIDANCE_V1_USER_INSTRUCTION
-    if prompt_style == "wall_avoidance_local_v2":
-        return (
-            WALL_AVOIDANCE_LOCAL_V2_SYSTEM_PROMPT,
-            WALL_AVOIDANCE_LOCAL_V2_USER_INSTRUCTION,
-        )
-    if prompt_style == "wall_avoidance_axis_v3":
-        return (
-            WALL_AVOIDANCE_AXIS_V3_SYSTEM_PROMPT,
-            WALL_AVOIDANCE_AXIS_V3_USER_INSTRUCTION,
-        )
-    if prompt_style == "live_static_v2":
-        return LIVE_STATIC_V2_SYSTEM_PROMPT, LIVE_STATIC_V2_USER_INSTRUCTION
     if prompt_style == "live_state_v3":
         return LIVE_STATE_V3_SYSTEM_PROMPT, LIVE_STATE_V3_USER_INSTRUCTION
     raise ValueError(
@@ -457,73 +389,6 @@ def encode_png(image: np.ndarray) -> bytes:
         compress_level=1,
     )
     return buffer.getvalue()
-
-
-def crop_pacman_local_view(
-    image: np.ndarray,
-    *,
-    radius: int = 48,
-    upscale: int = 3,
-) -> np.ndarray:
-    """Find Pacman from yellow pixels and return a centered local RGB view."""
-    if image.dtype != np.uint8 or image.ndim != 3 or image.shape[2] != 3:
-        raise ValueError("image must be an RGB uint8 array")
-    if radius < 8 or upscale < 1:
-        raise ValueError("invalid local-view dimensions")
-
-    # Pacman and pellets are pure yellow. Pacman is the largest connected
-    # yellow component; orange ghosts are excluded by the strict green cutoff.
-    yellow = (image[:, :, 0] > 240) & (image[:, :, 1] > 220) & (image[:, :, 2] < 40)
-    # Ignore the small yellow score/lives glyphs at the very bottom.
-    yellow[max(0, image.shape[0] - 20) :, :] = False
-    seen = np.zeros(yellow.shape, dtype=bool)
-    largest: list[tuple[int, int]] = []
-    height, width = yellow.shape
-    for row, col in zip(*np.where(yellow), strict=True):
-        row = int(row)
-        col = int(col)
-        if seen[row, col]:
-            continue
-        component: list[tuple[int, int]] = []
-        stack = [(row, col)]
-        seen[row, col] = True
-        while stack:
-            current_row, current_col = stack.pop()
-            component.append((current_row, current_col))
-            for row_delta in (-1, 0, 1):
-                for col_delta in (-1, 0, 1):
-                    neighbor_row = current_row + row_delta
-                    neighbor_col = current_col + col_delta
-                    if (
-                        0 <= neighbor_row < height
-                        and 0 <= neighbor_col < width
-                        and yellow[neighbor_row, neighbor_col]
-                        and not seen[neighbor_row, neighbor_col]
-                    ):
-                        seen[neighbor_row, neighbor_col] = True
-                        stack.append((neighbor_row, neighbor_col))
-        if len(component) > len(largest):
-            largest = component
-    if len(largest) < 100:
-        raise ValueError("could not locate Pacman in RGB observation")
-
-    center_row = int(round(sum(row for row, _ in largest) / len(largest)))
-    center_col = int(round(sum(col for _, col in largest) / len(largest)))
-    side = radius * 2
-    local = np.zeros((side, side, 3), dtype=np.uint8)
-    source_top = max(0, center_row - radius)
-    source_bottom = min(height, center_row + radius)
-    source_left = max(0, center_col - radius)
-    source_right = min(width, center_col + radius)
-    target_top = source_top - (center_row - radius)
-    target_left = source_left - (center_col - radius)
-    local[
-        target_top : target_top + source_bottom - source_top,
-        target_left : target_left + source_right - source_left,
-    ] = image[source_top:source_bottom, source_left:source_right]
-    if upscale > 1:
-        local = np.repeat(np.repeat(local, upscale, axis=0), upscale, axis=1)
-    return local
 
 
 def png_sha256(png: bytes) -> str:

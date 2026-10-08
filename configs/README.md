@@ -78,8 +78,9 @@ baseline diagnostic horizon, not permission to run that baseline for C1.
 
 - `level1/train/`: the two active training configurations.
 - `level1/eval/`: evaluation-only configurations.
-- `level1/archive/`: earlier Level-1 gates, the former standalone smoke gate,
-  and the log-prob probe retained for reproducibility.
+- Earlier Level-1 gates, the standalone smoke gate and the log-prob probe
+  (`level1/archive/`) were removed after commit `0d904fb`; recover them from
+  Git history when reproducing those experiments.
 
 Current delivery is source/recipe-only. A directly runnable final agent also
 needs complete C2 inference weights and the exact harness/runtime. Report actual
@@ -93,5 +94,4 @@ not shipped on this release branch. They are not part of the Level-1
 reproduction path.
 
 Production Level-1 uses the bundled `pacman_env.PygamePacmanEnv`; it does not
-require a separate Pacman checkout. Configurations under `level1/archive/`
-are not the default production path.
+require a separate Pacman checkout.

@@ -48,12 +48,9 @@ from pacman_recipe.level1_dataset import (
 from pacman_recipe.prompts import (
     EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT,
     LIVE_STATE_V3_SYSTEM_PROMPT,
-    LIVE_STATIC_V2_SYSTEM_PROMPT,
-    LIVE_STATIC_V2_USER_INSTRUCTION,
     SYSTEM_PROMPT,
     USER_INSTRUCTION,
     build_image_messages,
-    crop_pacman_local_view,
     encode_png,
     image_count,
     png_sha256,
@@ -341,67 +338,6 @@ class PromptAndActionTests(unittest.TestCase):
     def test_png_encoding_is_deterministic(self) -> None:
         image = np.zeros((8, 8, 3), dtype=np.uint8)
         self.assertEqual(encode_png(image), encode_png(image.copy()))
-
-    def test_local_wall_view_is_visual_only_and_centers_pacman(self) -> None:
-        env = PygamePacmanEnv()
-        image, _ = env.reset(seed=0)
-        local = crop_pacman_local_view(image)
-        env.close()
-        self.assertEqual(local.shape, (288, 288, 3))
-        center = local[120:168, 120:168]
-        yellow = (
-            (center[:, :, 0] > 240)
-            & (center[:, :, 1] > 220)
-            & (center[:, :, 2] < 40)
-        )
-        self.assertGreater(int(yellow.sum()), 100)
-        messages = build_image_messages(
-            encode_png(local),
-            prompt_style="wall_avoidance_local_v2",
-        )
-        combined = json.dumps(messages)
-        self.assertEqual(image_count(messages), 1)
-        for forbidden in ("open_actions", "blocked_actions", "pacman_position"):
-            self.assertNotIn(forbidden, combined)
-        axis_messages = build_image_messages(
-            encode_png(local),
-            prompt_style="wall_avoidance_axis_v3",
-        )
-        axis_combined = json.dumps(axis_messages)
-        self.assertEqual(image_count(axis_messages), 1)
-        self.assertIn("if it continues horizontally", axis_combined)
-        for forbidden in ("open_actions", "blocked_actions", "pacman_position"):
-            self.assertNotIn(forbidden, axis_combined)
-
-    def test_live_static_v2_is_image_only_and_borrows_visual_landmarks(self) -> None:
-        png = encode_png(np.zeros((8, 8, 3), dtype=np.uint8))
-        messages = build_image_messages(png, prompt_style="live_static_v2")
-        self.assertEqual(
-            messages[0],
-            {"role": "system", "content": LIVE_STATIC_V2_SYSTEM_PROMPT},
-        )
-        self.assertEqual(
-            messages[1]["content"][0]["text"],
-            LIVE_STATIC_V2_USER_INSTRUCTION,
-        )
-        combined = json.dumps(messages)
-        for expected in (
-            "yellow circle with a mouth",
-            "Blue lines are walls",
-            "screen-absolute",
-            "nearby pellet",
-        ):
-            self.assertIn(expected, combined)
-        for forbidden in (
-            "legal_actions",
-            "pellets_remaining",
-            "pacman_position",
-            "Teacher action",
-            "directions already taken",
-            "OPEN dir",
-        ):
-            self.assertNotIn(forbidden, combined)
-        self.assertEqual(image_count(messages), 1)
 
     def test_live_state_v3_contains_authoritative_navigation_context(self) -> None:
         png = encode_png(np.zeros((8, 8, 3), dtype=np.uint8))
@@ -968,46 +904,6 @@ class RewardAndTrajectoryTests(unittest.TestCase):
         ):
             self.assertIn(expected, config)
         self.assertNotIn("CURRICULUM1_CHECKPOINT", config)
-
-    def test_archived_step512_edward_gate_config_contract(self) -> None:
-        config = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "level1"
-            / "archive"
-            / "level1_edward_step512_2update_group12_8gpu.yaml"
-        ).read_text(encoding="utf-8")
-        for expected in (
-            "recipe_version: maapacman-level1-ghostdoor-v3",
-            "total_train_epochs: 2",
-            "reward_objective_contract: option_return_raw_v1",
-            "use_base_reward: false",
-            "fruit_reward: 0.0",
-            "safety_refusal_penalty: 25.0",
-            "step_penalty: 0.05",
-            "step_penalty_cleared_ratio_scale: 0.0",
-            "edward_options: true",
-            "action_token_choice: false",
-            "open_action_mask: false",
-            "n_samples: 12",
-            "batch_size: 4",
-            "gdn_prefill_backend: triton",
-            "kl_logprob_source: proximal",
-            "prox_logp_method: recompute",
-            "level: sequence",
-            "action: mask",
-            "agg: sum",
-            "lower: 0.8",
-            "upper: 1.25",
-            "freq_steps: 1",
-            "artifacts/datasets/level1_dataset_step512/train_hf",
-            "artifacts/datasets/level1_dataset_step512/validation_hf",
-        ):
-            self.assertIn(expected, config)
-        actor_section = config.split("\nref:\n", 1)[0].split("\nactor:\n", 1)[1]
-        self.assertIn("\n  reward_norm: null", "\n" + actor_section)
-        self.assertIn("\n  adv_norm: null", "\n" + actor_section)
-        self.assertNotIn("level1_dataset_step256/", config)
 
     def test_summary_counts_acceptance_metrics(self) -> None:
         summary = summarize_episodes(
@@ -2463,7 +2359,7 @@ class TrainerGenerationContractTests(unittest.TestCase):
             environment=SimpleNamespace(ghost_mode="normal", max_steps=256),
             enable_thinking=False,
             reward_objective_contract="episode_return_group_v1",
-            image_prompt_style="live_static_v2",
+            image_prompt_style="minimal_v1",
             tokenizer_path="test-tokenizer",
             legal_action_mask=False,
             open_action_mask=True,
@@ -2585,8 +2481,8 @@ class TrainerGenerationContractTests(unittest.TestCase):
         self.assertEqual(evaluation["top_p"], 1.0)
         self.assertIs(training["enable_thinking"], False)
         self.assertIs(evaluation["enable_thinking"], False)
-        self.assertEqual(training["image_prompt_style"], "live_static_v2")
-        self.assertEqual(evaluation["image_prompt_style"], "live_static_v2")
+        self.assertEqual(training["image_prompt_style"], "minimal_v1")
+        self.assertEqual(evaluation["image_prompt_style"], "minimal_v1")
         self.assertIs(training["open_action_mask"], True)
         self.assertIs(evaluation["open_action_mask"], True)
         self.assertEqual(
@@ -2611,126 +2507,9 @@ class TrainerGenerationContractTests(unittest.TestCase):
 
     def test_group12_config_declares_true_greedy_validation(self) -> None:
         config = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "level1"
-            / "archive"
-            / "level1_image_overfit_4epoch_group12_8gpu.yaml"
-        ).read_text(encoding="utf-8")
-        eval_block = config.split("eval_gconfig:", 1)[1].split("actor:", 1)[0]
-        self.assertIn("n_samples: 1", eval_block)
-        self.assertIn("greedy: true", eval_block)
-        self.assertIn("temperature: 0.0", eval_block)
-        self.assertIn("top_p: 1.0", eval_block)
-
-    def test_anticollapse_config_has_exact_four_update_contract(self) -> None:
         config = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "level1"
-            / "archive"
-            / "level1_image_anticollapse_4update_group12_8gpu.yaml"
-        ).read_text(encoding="utf-8")
-        self.assertIn("total_train_epochs: 2", config)
-        self.assertIn("image_prompt_style: minimal_v1", config)
-        self.assertEqual(
-            config.count("admin_api_key: ${oc.env:AREAL_ADMIN_API_KEY}"), 2
-        )
-        train_generation = config.split("gconfig:", 1)[1].split(
-            "eval_gconfig:", 1
-        )[0]
-        self.assertIn("n_samples: 12", train_generation)
-        self.assertIn("temperature: 0.7", train_generation)
-        eval_generation = config.split("eval_gconfig:", 1)[1].split(
-            "actor:", 1
-        )[0]
-        self.assertIn("n_samples: 1", eval_generation)
-        self.assertIn("greedy: true", eval_generation)
-        self.assertIn("temperature: 0.0", eval_generation)
-        actor = config.split("actor:", 1)[1].split("ref:", 1)[0]
-        self.assertIn("lr: 1.5e-6", actor)
-        self.assertIn("kl_ctl: 0.01", actor)
-        self.assertIn("optimizer_dtype: float32", actor)
-        self.assertIn("enable_offload: false", config)
-        ref = config.split("ref:", 1)[1].split("vllm:", 1)[0]
-        self.assertIn('backend: "vllm:d4p1t1"', config)
-        self.assertIn('backend: "fsdp:d4p1t1"', actor)
-        self.assertIn("backend: ${actor.backend}", ref)
-        self.assertIn("optimizer_dtype: bfloat16", ref)
-        self.assertIn("optimizer: null", ref)
-        self.assertIn("offload: false", ref)
-        self.assertIn("offload_params: true", ref)
-        self.assertIn("type: colocation", ref)
-        self.assertIn("target: actor", ref)
-        vllm = config.split("vllm:", 1)[1].split("train_dataset:", 1)[0]
-        self.assertIn("gpu_memory_utilization: 0.65", vllm)
-        self.assertEqual(config.count("freq_steps: 1"), 2)
-
-    def test_progress_config_is_alpha_one_isolated_followup(self) -> None:
         config = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "level1"
-            / "archive"
-            / "level1_image_progress_4update_group12_8gpu.yaml"
-        ).read_text(encoding="utf-8")
-        for expected in (
-            "nearest_pellet_alpha: 1.0",
-            "validation_contract: sampled12_and_greedy1",
-            "total_train_epochs: 2",
-            "image_prompt_style: minimal_v1",
-            "n_samples: 12",
-            "temperature: 0.7",
-            "lr: 1.5e-6",
-            "kl_ctl: 0.01",
-            'backend: "vllm:d4p1t1"',
-            'backend: "fsdp:d4p1t1"',
-            "offload_params: true",
-        ):
-            self.assertIn(expected, config)
-        self.assertEqual(
-            config.count("admin_api_key: ${oc.env:AREAL_ADMIN_API_KEY}"), 2
-        )
-        eval_generation = config.split("eval_gconfig:", 1)[1].split(
-            "actor:", 1
-        )[0]
-        self.assertIn("n_samples: 12", eval_generation)
-        self.assertIn("greedy: false", eval_generation)
-        self.assertIn("temperature: 0.7", eval_generation)
-        self.assertIn("top_p: 0.95", eval_generation)
-
-    def test_live_state_config_is_uniform_sampled_without_distance_shaping(self) -> None:
         config = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "level1"
-            / "archive"
-            / "level1_live_state_4update_group12_8gpu.yaml"
-        ).read_text(encoding="utf-8")
-        for expected in (
-            "validation_contract: sampled12_uniform",
-            "image_prompt_style: live_state_v3",
-            "nearest_pellet_alpha: 0.0",
-            "total_train_epochs: 8",
-            "n_samples: 12",
-            "temperature: 0.7",
-            "top_p: 1.0",
-            "logprobs_mode: processed_logprobs",
-        ):
-            self.assertIn(expected, config)
-        train_generation = config.split("gconfig:", 1)[1].split(
-            "eval_gconfig:", 1
-        )[0]
-        eval_generation = config.split("eval_gconfig:", 1)[1].split(
-            "actor:", 1
-        )[0]
-        for generation in (train_generation, eval_generation):
-            self.assertIn("n_samples: 12", generation)
-            self.assertIn("greedy: false", generation)
-            self.assertIn("temperature: 0.7", generation)
-            self.assertIn("top_p: 1.0", generation)
-
-    def test_open_action_mask_logprob_patch_is_preflighted(self) -> None:
         root = Path(__file__).parents[1]
         patch = (
             root / "patches" / "areal_pacman_action_logprobs.patch"
@@ -2803,10 +2582,6 @@ class TrainerGenerationContractTests(unittest.TestCase):
             "configs/level1/train/curriculum1.yaml",
             launcher,
         )
-        self.assertNotIn(
-            "configs/level1/archive/level1_image_overfit_4epoch_group12_8gpu.yaml",
-            launcher,
-        )
         self.assertIn('DATASET_ARGS=()', launcher)
         self.assertNotIn('DATASET_MAX_STEPS="${DATASET_MAX_STEPS:-256}"', launcher)
         self.assertIn('SMOKE_ARGS=(--smoke-updates "${SMOKE_UPDATES}")', launcher)
@@ -2828,30 +2603,6 @@ class TrainerGenerationContractTests(unittest.TestCase):
 
     def test_official_areal_single_step_smoke_contract(self) -> None:
         config = (
-            Path(__file__).parents[1]
-            / "configs"
-            / "level1"
-            / "archive"
-            / "level1_official_areal_smoke_3b_4gpu.yaml"
-        ).read_text(encoding="utf-8")
-        self.assertIn("total_train_epochs: 2", config)
-        self.assertIn("n_samples: 4", config)
-        self.assertIn("group_size: ${gconfig.n_samples}", config)
-        self.assertIn("offload_params: false", config)
-        self.assertIn(
-            "allow_unoffloaded_actor_colocated_ref_for_smoke: true", config
-        )
-        train = config.split("train_dataset:", 1)[1].split("valid_dataset:", 1)[0]
-        self.assertIn("batch_size: 4", train)
-        self.assertIn(
-            "image_prompt_style: wall_avoidance_axis_v3", config
-        )
-        self.assertIn("action_token_choice: false", config)
-        self.assertIn("n_gpus_per_node: 4", config)
-        self.assertIn('backend: "vllm:d2p1t1"', config)
-        self.assertIn('backend: "fsdp:d2p1t1"', config)
-
-    def test_run_evaluator_can_resume_and_matches_sampled_served_name(self) -> None:
         evaluator = (
             Path(__file__).parents[1]
             / "scripts"

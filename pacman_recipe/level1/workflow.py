@@ -42,7 +42,6 @@ from .prompts import (
     build_image_messages,
     edward_system_prompt,
     render_edward_decision_prompt,
-    crop_pacman_local_view,
     encode_png,
     image_count,
     png_sha256,

@@ -53,7 +53,6 @@ def test_ghost_mode_schema_uses_new_dataset_contract() -> None:
     [
         "scripts/level1/report/export_level1_rollout_video.py",
         "scripts/level1/report/export_level1_ab_demo_video.py",
-        "scripts/level1/evaluate/evaluate_single_step_wall.py",
     ],
 )
 def test_replay_consumers_forward_recorded_mode(relative):
