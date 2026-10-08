@@ -23,7 +23,7 @@ does not establish global validation-best retention.
 
 - C1: ghost-disabled, no Edward in data/training/native evaluation; one legal
   U/D/L/R token under `direct-open-action-token-v1`, with
-  `live-state-direct-action-v3` prompts. `step_local_raw_v1` uses each action's
+  `live-state-direct-action-v3+fixed-image-dynamic-v2` prompts. `step_local_raw_v1` uses each action's
   own shaped reward, `reward_norm/adv_norm=null`, and `reward_clip=.inf`.
 - C2: normal ghosts, advertised Edward option-code token under
   `edward-option-code-v1`; complete C1 initialization and fresh optimizer/scheduler.
@@ -46,3 +46,23 @@ See the root README for GPU, complete-model and download-verification gates.
 New code should import from `pacman_recipe.level1`. Root modules with the same
 names are compatibility shims for existing Python callers and YAML workflow
 paths.
+
+
+Next-run layout correction (2026-10-07, working tree): ASCII now uses
+`edward-ascii-option-code-v2+fixed-map-dynamic-v1`. Its fixed user explanations
+are derived from the VLM fixed prefix, replacing only screenshot/image terms
+with map terms. State fields, candidate fields, navigation and metrics are all
+explained before the map; dynamic state/candidate rows follow it. No cache padding
+is added. SFT and RL should use this same formatter; existing data and running
+snapshots retain their own identities. Re-tokenize and freeze the actual prefix
+length for the next run; the prior 384-token candidate is superseded.
+
+Previous prompt layout update (2026-10-07, source commit `45a89dd`): image Edward uses
+`edward-option-code-v2+fixed-image-dynamic-v2`; ASCII retains its separate
+`edward-ascii-option-code-v1` version with a new template fingerprint. Renderers,
+dataset versions, YAML, trajectory audits, and Slime runner declarations agree.
+`vision_prompt.py` shares fixed-image-dynamic layout with grounding clients;
+ASCII renders map, state, candidate rows, and output as separate sections.
+Regenerate prepared data and runtime identities after this change; never patch
+old hashes. The 18 focused CPU checks passed, including a real game episode.
+The paused 200-update job has not been redeployed with these prompts.

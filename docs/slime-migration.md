@@ -1,12 +1,24 @@
 # slime 迁移：实现与验收
 
+## 下一轮固定前缀与布局对齐（2026-10-07，工作区修改）
+
+ASCII 改用 `edward-ascii-option-code-v2+fixed-map-dynamic-v1`，固定字段、候选、导航和评分说明由 VLM 固定前缀派生，全部位于地图前；动态地图／状态／候选／输出顺序不变。没有添加缓存对齐文字，SFT 与 RL 共用该 formatter。旧数据及运行中的独立源码快照保持原身份；下一轮需重新准备数据、实测 tokenizer 边界并冻结身份。
+
+固定缓存代码是显式启用的实验路径：只允许精确固定前缀节点，启动及每次权重变化后逐 engine 预热，实际决策校验缓存命中长度；长度、token SHA、补丁 SHA、启动参数、192 workers 与 32/64 并发写入 cache contract。确定性重放和真实更新 A/B 验收完成前不宣布采用。进展见[前缀缓存报告](../../reports/slime-migration-20260928/round2/rollout-throughput-prefix-cache/REPORT.md)。以下启动状态属于历史记录。
+
 ## ASCII动态bank v2（2026-10-07）
 
-独立模块`slime_pacman.diverse_bank_v2`与`route_capture_v2`实现4开局＋4回练＋2早期＋6近期、16代表池、完整路线早期与死亡前快照。v1模块保持不变；v2 checkpoint明确拒绝v1身份。运行集成和验证命令见[实现记录](../../reports/slime-migration-20260928/round2/ascii-edward-next-run/V2_IMPLEMENTATION.md)。真实初始化可行性、GPU概率/TIS和原生恢复尚待验证，未启动200更新训练。
+独立模块`slime_pacman.diverse_bank_v2`与`route_capture_v2`实现4开局＋4回练＋2早期＋6近期、16代表池、完整路线早期与死亡前快照。v1模块保持不变；v2 checkpoint明确拒绝v1身份。运行集成和验证命令见[实现记录](../../reports/slime-migration-20260928/round2/ascii-edward-next-run/V2_IMPLEMENTATION.md)。v2与新prompt的真实初始化可行性、GPU概率/TIS和原生恢复尚待验证；旧prompt的200-update进程已停止，未完成optimizer更新。
 
-独立200-update长训入口及预算见[LONG_TRAINING](../../reports/slime-migration-20260928/round2/ascii-edward-next-run/LONG_TRAINING.md)：共享总游戏上限55,248，不设时间上限，不另跑两更新smoke。Clip-Cov ed5a88f已同步，本轮关闭；仅准备代码与配置，训练未启动。
+独立200-update长训入口及预算见[LONG_TRAINING](../../reports/slime-migration-20260928/round2/ascii-edward-next-run/LONG_TRAINING.md)：共享总游戏上限55,248，不设时间上限，不另跑两更新smoke。Clip-Cov固定`0.01,1,5`，128单线程workers／每engine16并发／radix cache开启。旧prompt任务启动后按用户要求停止，未完成optimizer更新；新prompt尚未部署。
 
-## 当前边界
+## 新prompt与启动状态（2026-10-07）
+
+源码提交`45a89dd`已推送：ASCII采用地图／状态／逐行候选／输出分区，VLM采用`fixed-image-dynamic-v2`。状态和候选证据、动作代码及risk fallback保持一致；dataset/YAML与Slime runner版本同步，runner从实际prompt契约读取版本。已有目标继续执行时不要求新目标选择前缀。
+
+修复后18项快速CPU检查通过（12.04秒，含真实游戏episode）；全仓收集仍因本机缺AReaL阻塞。未跑GPU smoke，尚未验证新prompt真实2048-token上限。旧部署包绑定`3b52577`，不能直接重启；需新源码包/独立目录，重新冻结dataset/runtime identity、初始化bank和baseline。原始模型及游戏资产可复用。旧任务于15:22 PDT停止后8卡已核实释放；再次启动须重新现场检查资源。训练保持停止。
+
+## 迁移历史边界（以下保留原验收记录）
 
 本地 adapter、公共 episode runner、中立数据格式及 CPU 验收已实现。
 真实 Megatron/SGLang GPU 训练尚未验收；不能据此声称训练已迁移成功。

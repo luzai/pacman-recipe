@@ -80,8 +80,8 @@ def test_visual_sections_preserve_candidates_and_risk_evidence():
         {},[candidate],constraint,
         'MAP (row 0 at top; header shows column mod 10):\n  012\n0 #P ',
         fallback_mode='risk_ranked')
-    ascii_state=json.loads(ascii_prompt.split('[CURRENT STATE]\n')[1].splitlines()[1])
-    ascii_row=json.loads(ascii_prompt.split('[CANDIDATE OBJECTIVES]\n')[1].splitlines()[2])
+    ascii_state=json.loads(ascii_prompt.split('[CURRENT STATE]\n')[1].splitlines()[0])
+    ascii_row=json.loads(ascii_prompt.split('[CANDIDATE OBJECTIVES]\n')[1].splitlines()[0])
     assert ascii_state==state and ascii_row==row
     assert ascii_prompt.split('[OUTPUT]\n')[1]==new.split('[OUTPUT]\n')[1]
 

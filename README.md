@@ -7,7 +7,7 @@ adapter 与 CPU 验收已实现，真实 GPU 训练尚未验收。详见
 [slime 迁移](docs/slime-migration.md)。迁移和 prompt 版本说明见
 [名称迁移与 prompt 审计](docs/preparation-migration.md)。
 
-当前 C2 使用 `edward-option-code-v2` prompt，动作协议仍为
+当前 C2 使用 `edward-option-code-v2+fixed-image-dynamic-v2` prompt，动作协议仍为
 `edward-option-code-v1`。旧 prompt 数据不能直接用于新训练：请重新准备数据并
 验证 manifest，不要修改历史文件的哈希来绕过检查。
 
@@ -20,8 +20,9 @@ Primitive 优先生存，再在安全的开放方向中收集普通豆子；仅�
 这些文本变更会更新 prompt 指纹；新运行需要重新验证数据合约及真实 processor 的 token budget。
 
 未来 VLM 运行使用 `fixed-image-dynamic-v2` 布局：system 规则，随后 user 中的
-固定字段说明 → 当前截图 → 当前状态 → 候选目标 → 输出。ASCII 使用对应的地图、
-状态、候选目标、输出四个分区；两者状态字段、候选顺序、动作代码及风险回退规则
+固定字段说明 → 当前截图 → 当前状态 → 候选目标 → 输出。ASCII 的
+`edward-ascii-option-code-v2+fixed-map-dynamic-v1` 使用同一位置的固定字段说明，
+随后是地图、状态、候选目标、输出四个分区；两者状态字段、候选顺序、动作代码及风险回退规则
 保持一致，候选从状态 JSON 中拆出、每行一项。prompt 指纹已更新，新数据需重新
 生成并验证合约。
 布局纳入 VLM prompt 版本和指纹，旧运行应使用其原始源码快照。

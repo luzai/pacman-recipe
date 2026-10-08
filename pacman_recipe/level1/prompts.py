@@ -637,25 +637,17 @@ ASCII_EDWARD_SYSTEM_PROMPT = EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT.replace(
     "do not infer flashing from a single screenshot.",
     "Use the structured ghost state to determine whether a ghost is vulnerable.",
 )
+ASCII_EDWARD_LAYOUT_VERSION = "fixed-map-dynamic-v1"
+# Keep the same fixed-instructions-first topology as VLM. Only the observation
+# terminology differs; no padding or cache-specific words enter either prompt.
+ASCII_EDWARD_FIXED_PREFIX = VISION_EDWARD_FIXED_PREFIX.replace(
+    "screenshot", "map"
+).replace("[CURRENT IMAGE]", "[CURRENT MAP]")
 ASCII_EDWARD_USER_TEMPLATE = (
-    "Choose one tactical objective.\n\n"
-    "[CURRENT MAP]\n"
-    "Coordinates are [row,column], starting at 0. If the map and structured "
-    "state disagree, trust the structured state.\n"
-    "{ascii_map}\n\n"
-    "[CURRENT STATE]\n"
-    "Keys: p=Pac-Man [row,column], f=facing, pellets=normal+power pellets "
-    "remaining, maze=[rows,columns], ghosts=[[id,state,position]], "
-    "edible_ticks=vulnerability time, last=previous action.\n"
-    "{decision_state}\n\n"
-    "[CANDIDATE OBJECTIVES]\n"
-    "Each row: [code,id,strategy,target,first_action,distance,commit,safety,exits,entity].\n"
-    "Each candidate describes a target and its navigation plan. "
-    "first_action=the first move the navigator executes if you select this candidate; "
-    "screen-absolute U=up, D=down, L=left, R=right. Select its code. "
-    "Metrics: distance=route steps, commit=max executed moves, larger "
-    "safety/exits are better, entity=ELIMINATE ghost id.\n"
-    "{candidate_rows}\n\n"
+    ASCII_EDWARD_FIXED_PREFIX
+    + "{ascii_map}\n\n"
+    "[CURRENT STATE]\n{decision_state}\n\n"
+    "[CANDIDATE OBJECTIVES]\n{candidate_rows}\n\n"
     "[OUTPUT]\n"
     "Use only the candidates shown for this turn. Return exactly one "
     "code from [{option_codes}]; nothing else."
@@ -714,7 +706,7 @@ def ascii_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse") -> d
     }
     return {
         "action_protocol": "edward-option-code-v1",
-        "prompt_version": "edward-ascii-option-code-v1",
+        "prompt_version": f"edward-ascii-option-code-v2+{ASCII_EDWARD_LAYOUT_VERSION}",
         "prompt_template_sha256": text_sha256(json.dumps(fingerprint, sort_keys=True, allow_nan=False)),
         "system_prompt_sha256": text_sha256(ASCII_EDWARD_SYSTEM_PROMPT),
         "user_prompt_template_sha256": text_sha256(template),

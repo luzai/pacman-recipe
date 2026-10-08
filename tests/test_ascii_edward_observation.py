@@ -43,7 +43,7 @@ def test_future_and_hidden_state_cannot_change_map_or_json():
     result=prompts.compact_ascii_edward_decision_prompt(context,[],constraint,before)
     assert 'path_remaining' not in result and 'velocity' not in result and 'direction' not in result
     assert before+'\n\n[CURRENT STATE]' in result
-    state_line=result.split('[CURRENT STATE]\n',1)[1].splitlines()[1]
+    state_line=result.split('[CURRENT STATE]\n',1)[1].splitlines()[0]
     assert json.loads(state_line)['ghosts']==[
         [g['id'],g['state'],g['position']] for g in state['ghosts']]
     assert '"c":' not in state_line
@@ -57,7 +57,7 @@ def test_only_approved_system_replacements_and_new_identity():
     new=prompts.prompt_contract_metadata('ascii_edward_v1',edward_options=True)
     assert new['action_protocol']==old['action_protocol']
     assert new['prompt_template_sha256']!=old['prompt_template_sha256']
-    assert new['prompt_version']=='edward-ascii-option-code-v1'
+    assert new['prompt_version']=='edward-ascii-option-code-v2+fixed-map-dynamic-v1'
 
 
 def test_archived_prompt_constants_and_renderer_source_unchanged():
@@ -108,8 +108,8 @@ def test_risk_suffix_and_candidate_bytes_preserved():
     old=prompts.render_edward_decision_prompt({},[candidate],constraint,fallback_mode='risk_ranked')
     new=prompts.compact_ascii_edward_decision_prompt({},[candidate],constraint,board,fallback_mode='risk_ranked')
     old_state=json.loads(old.splitlines()[2])
-    new_state=json.loads(new.split('[CURRENT STATE]\n',1)[1].splitlines()[1])
-    candidate_line=new.split('[CANDIDATE OBJECTIVES]\n',1)[1].splitlines()[2]
+    new_state=json.loads(new.split('[CURRENT STATE]\n',1)[1].splitlines()[0])
+    candidate_line=new.split('[CANDIDATE OBJECTIVES]\n',1)[1].splitlines()[0]
     assert new_state=={k:v for k,v in old_state.items() if k!='c'}
     assert json.loads(candidate_line)==old_state['c'][0]
     assert new[new.index(' RISK_FALLBACK is not safety-approved.'):]==old[
@@ -131,7 +131,7 @@ def test_sections_multiple_candidate_rows_and_layout_fingerprint():
     labels=['[CURRENT MAP]','[CURRENT STATE]','[CANDIDATE OBJECTIVES]','[OUTPUT]']
     assert [rendered.index(label) for label in labels]==sorted(rendered.index(label) for label in labels)
     assert board+'\n\n[CURRENT STATE]' in rendered
-    rows=rendered.split('[CANDIDATE OBJECTIVES]\n',1)[1].split('\n\n[OUTPUT]',1)[0].splitlines()[2:]
+    rows=rendered.split('[CANDIDATE OBJECTIVES]\n',1)[1].split('\n\n[OUTPUT]',1)[0].splitlines()
     old=prompts.compact_edward_decision_prompt(context,candidates,constraint)
     assert [json.loads(row) for row in rows]==json.loads(old.splitlines()[2])['c']
     assert rendered.endswith('code from [B,C]; nothing else.')
@@ -139,3 +139,14 @@ def test_sections_multiple_candidate_rows_and_layout_fingerprint():
     assert metadata['user_prompt_template_sha256']==prompts.text_sha256(prompts.ASCII_EDWARD_USER_TEMPLATE)
     assert metadata['user_prompt_template_sha256']!=prompts.text_sha256(
         prompts.EDWARD_OPTION_CODE_V2_USER_TEMPLATE.replace('{decision_state}','{ascii_map}\n{decision_state}',1))
+
+
+def test_ascii_and_vlm_place_identical_fixed_explanations_before_observation():
+    assert prompts.ASCII_EDWARD_FIXED_PREFIX==prompts.VISION_EDWARD_FIXED_PREFIX.replace(
+        'screenshot','map').replace('[CURRENT IMAGE]','[CURRENT MAP]')
+    before,after=prompts.ASCII_EDWARD_USER_TEMPLATE.split('{ascii_map}',1)
+    assert before==prompts.ASCII_EDWARD_FIXED_PREFIX
+    for explanation in ('Keys: p=','Candidate row:','first_action=','Metrics: distance='):
+        assert explanation in before and explanation not in after
+        assert explanation in prompts.VISION_EDWARD_FIXED_PREFIX
+    assert after.startswith('\n\n[CURRENT STATE]\n{decision_state}')
