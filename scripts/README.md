@@ -21,6 +21,12 @@ from the JSON file, and compares RGB, full simulator/RNG state, rewards and
 transition events after each recorded action. See
 [save-state semantics](../docs/simulator-save-state.md).
 
+`level1/report/check_hf_export.py DIR...` must print `EXPORT_OK` for every
+exported Hugging Face checkpoint before it is served by SGLang or used to start
+training: all config dtypes bfloat16, all tensors BF16, no shard index that points
+at missing files, preprocessor `shortest_edge=537600`, tokenizer and chat template
+present. It reads only JSON and safetensors headers (no torch).
+
 `level1/report/export_level1_rollout_video.py` labels videos with the recorded
 terminal reason, final score, and remaining pellets. Replay accepts a final
 planner `safety_refusal` truncation only while the game environment remains
