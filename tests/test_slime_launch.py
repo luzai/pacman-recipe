@@ -30,7 +30,8 @@ def test_environment_uses_cli_paths_and_preserves_dependencies(monkeypatch, tmp_
 @pytest.mark.parametrize("initialized", [False, True])
 def test_launcher_initializes_before_upstream_and_strips_wrapper_args(monkeypatch, tmp_path, initialized):
     (tmp_path / "train.py").write_text("# fake upstream")
-    (tmp_path / "c2.yaml").write_text("# fake config")
+    # The launcher reads the image contract from the config, so it must be real.
+    (tmp_path / "c2.yaml").write_text((Path(__file__).resolve().parents[1] / "configs/slime/c2.yaml").read_text())
     events = []
     ray = SimpleNamespace(
         is_initialized=lambda: initialized,

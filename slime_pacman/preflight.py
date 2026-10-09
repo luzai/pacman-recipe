@@ -101,7 +101,7 @@ def check_model(directory):
         if path.parent != directory.resolve() or not path.is_file():
             raise ValueError("model shard missing or outside model directory")
     from transformers import AutoProcessor
-    from pacman_recipe.level1.vision_prompt import VISION_IMAGE_CONTRACT, configure_image_processor
+    from pacman_recipe.level1.vision_prompt import configure_image_processor, vision_image_contract
 
     processor = configure_image_processor(AutoProcessor.from_pretrained(directory, local_files_only=True))
     return {
@@ -109,20 +109,32 @@ def check_model(directory):
         "shards": shards,
         "processor_class": type(processor).__name__,
         "image_size": dict(processor.image_processor.size),
-        "image_contract": VISION_IMAGE_CONTRACT,
+        "image_contract": vision_image_contract(),
         "screenshot_grid_thw": check_image_contract(processor),
     }
 
 
 def check_image_contract(processor):
-    """A 336x400 screenshot must become 25x21 merged tokens: one per board cell."""
-    from PIL import Image
+    """A 336x400 screenshot must become 25x21 merged tokens: one per board cell.
 
-    out = processor.image_processor(images=[Image.new("RGB", (336, 400))], return_tensors="pt")
-    grid = out["image_grid_thw"].tolist()
-    if grid != [[1, 50, 42]]:
-        raise ValueError(f"screenshot image grid {grid} != [[1, 50, 42]]; check min_pixels")
-    return grid
+    Under the cell contract smaller mazes must also map one token per cell.
+    """
+    import numpy as np
+    from PIL import Image
+    from pacman_recipe.level1.vision_prompt import VISION_CELL_CONTRACT, vision_image_contract, vision_model_image
+
+    contract = vision_image_contract()
+    boards = [(25, 21)] + ([(11, 11), (15, 21)] if contract == VISION_CELL_CONTRACT else [])
+    grids = []
+    for rows, cols in boards:
+        image = vision_model_image(np.zeros((rows * 16, cols * 16, 3), np.uint8), contract)
+        out = processor.image_processor(images=[Image.fromarray(image)], return_tensors="pt")
+        grid = out["image_grid_thw"].tolist()
+        if grid != [[1, 2 * rows, 2 * cols]]:
+            raise ValueError(f"{rows}x{cols} board image grid {grid} != [[1, {2 * rows}, {2 * cols}]] "
+                             f"under {contract}; check the processor resolution")
+        grids.append(grid)
+    return grids[0]
 
 
 def check_runtime():

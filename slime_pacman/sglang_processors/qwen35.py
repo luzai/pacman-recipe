@@ -2,7 +2,12 @@
 
 import copy
 
-from pacman_recipe.level1.vision_prompt import configure_image_processor
+from pacman_recipe.level1.vision_prompt import (
+    VISION_CELL_CONTRACT,
+    check_cell_image_size,
+    configure_image_processor,
+    vision_image_contract,
+)
 from sglang.srt.models.qwen3_5 import Qwen3_5ForConditionalGeneration
 from sglang.srt.multimodal.processors.qwen_vl import QwenVLImageProcessor
 
@@ -33,6 +38,12 @@ class PacmanQwen35Processor(QwenVLImageProcessor):
 
     def process_mm_data(self, input_text, images=None, videos=None, audios=None, **kwargs):
         kwargs["device"] = "cpu"
+        if vision_image_contract() == VISION_CELL_CONTRACT:
+            # A screenshot that skipped the 2x upscale would be silently tokenized
+            # at the wrong scale; its 16 px cells fail the 32 px check.
+            for image in images or ():
+                if hasattr(image, "size"):
+                    check_cell_image_size(*image.size)
         return super().process_mm_data(
             input_text, images=images, videos=videos, audios=audios, **kwargs
         )

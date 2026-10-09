@@ -9,6 +9,33 @@ one token per ~2x2 cells. With `min_pixels=537600` it is resized 2x to 672x800: 
 `[1,50,42]`, 525 merged tokens, exactly one per board cell. Visual-grounding SFT
 (`reports/.../visual-grounding-*`) is trained at 537600, so VLM RL must use the same value.
 
+## Opt-in cell contract for mazes up to 25x21 (2026-10-09)
+
+`vision_image_contract: cell-2x-bicubic-v1` in the slime config (default stays
+`qwen-min-pixels-537600`). The single `min_pixels` above only aligns the 336x400 level-1
+screenshot; an 11x11, 13x13 or 15x15 maze frame is upscaled to a `[1,46,46]` grid that does
+not line up with its cells. Under the cell contract:
+
+- `vision_model_image` upscales the RGB frame exactly 2x with PIL bicubic (32 px per cell)
+  before PNG encoding, so the training processor and SGLang receive the same image.
+- `configure_image_processor` sets `min_pixels=4096`, `max_pixels=537600`; a 2x board passes
+  through unresized, giving `[1, 2*rows, 2*cols]`. Mazes larger than 25 rows or 21 columns are
+  rejected.
+- `slime_pacman.launch` exports `PACMAN_VISION_IMAGE_CONTRACT` from the config; rollout
+  workers and the SGLang processor read it. The SGLang processor rejects an image that is not
+  32 px per cell (a screenshot that skipped the upscale) with HTTP 400.
+- Preflight checks 25x21, 11x11 and 15x21 boards under this contract.
+
+Verified in the runtime image with D4b update-3000 (H100_2_1, 2026-10-09): on 16 real
+level-1 screenshots the cell contract gives bit-identical `pixel_values` and `input_ids` to
+the 537600 contract, so checkpoints trained under 537600 see unchanged inputs; live SGLang
+matched training-side prompt tokens 19/19 (including 11/13/15 mazes at 1269/1317/1373
+tokens), option argmax 19/19 vs HF bf16, max support-normalized probability difference
+0.045, mean KL 0.0030; an unscaled screenshot was rejected. Receipt:
+`reports/slime-migration-20260928/round2/vg-cell-contract-probe/README.md`.
+An SFT export for this contract must write `shortest_edge=4096`, `longest_edge=537600`;
+`scripts/level1/report/check_hf_export.py --min-pixels 4096` checks the former.
+
 ## Where it is applied
 
 - Training inputs: `slime_pacman/rollout.py` wraps slime's `load_processor` with

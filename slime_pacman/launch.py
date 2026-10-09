@@ -39,6 +39,12 @@ def build_environment(*, slime_root, config, run_dir):
         PACMAN_SLIME_CONFIG=str(Path(config).expanduser().resolve()),
         PACMAN_RUN_DIR=str(Path(run_dir).expanduser().resolve()),
     )
+    if Path(config).expanduser().is_file():
+        # Rollout workers and SGLang's image processor read the contract from here.
+        from pacman_recipe.level1.vision_prompt import VISION_CONTRACT_ENV
+        from .config import load_config
+
+        env[VISION_CONTRACT_ENV] = load_config(config).vision_image_contract
     return env
 
 

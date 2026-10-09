@@ -55,6 +55,7 @@ from .token_constraints import (
     ObjectiveParseError,
     ObjectiveTokenConstraint,
 )
+from .vision_prompt import vision_model_image
 
 
 EXPECTED_ACTIONS = ("U", "D", "L", "R", "S")
@@ -709,7 +710,7 @@ class PacmanEpisodeRunner:
             final_info = previous_info
             while True:
                 turn: ModelTurn | None = None
-                model_image = image
+                model_image = image if ascii_observation else vision_model_image(image)
                 png = b'' if ascii_observation else encode_png(model_image)
                 live_snapshot = env.snapshot()
                 option_candidates: tuple[PlannerCandidate, ...] = ()

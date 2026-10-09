@@ -25,6 +25,7 @@ class PacmanConfig:
     edward_fallback_mode: str = "refuse"
     observation_mode: str = "image"
     ascii_map_format: str = "packed"
+    vision_image_contract: str = "qwen-min-pixels-537600"
 
     def __post_init__(self):
         if self.observation_mode not in {'image', 'ascii'}:
@@ -32,6 +33,11 @@ class PacmanConfig:
         if self.ascii_map_format not in ("packed", "spaced") or (
                 self.ascii_map_format == "spaced" and self.observation_mode != "ascii"):
             raise ValueError("ascii_map_format must be packed, or spaced with observation_mode=ascii")
+        from pacman_recipe.level1.vision_prompt import VISION_CELL_CONTRACT, VISION_IMAGE_CONTRACT
+        if self.vision_image_contract not in (VISION_IMAGE_CONTRACT, VISION_CELL_CONTRACT) or (
+                self.vision_image_contract == VISION_CELL_CONTRACT and self.observation_mode != "image"):
+            raise ValueError(f"vision_image_contract must be {VISION_IMAGE_CONTRACT}, "
+                             f"or {VISION_CELL_CONTRACT} with observation_mode=image")
         if self.edward_fallback_mode not in {"refuse", "risk_ranked"}:
             raise ValueError("unsupported Edward fallback mode")
         if not math.isfinite(self.success_speed_bonus) or not 0 <= self.success_speed_bonus <= 0.1:
