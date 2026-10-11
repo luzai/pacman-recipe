@@ -847,6 +847,7 @@ class EdwardPlanner:
             ]
         ] = []
         reachable_collect_margins: list[int] = []
+        remaining_normal = self.remaining & self.level.pellets
         for target in self.remaining:
             route = _shortest_path(
                 self.level,
@@ -868,10 +869,13 @@ class EdwardPlanner:
                 route,
                 lethal_tuple,
             )
-            if (
-                margin <= _SAFETY_MARGIN
-                or (exits == 0 and lethal_tuple)
-                or not safe_return
+            # Clearing the last normal pellet ends the episode. A safe arrival
+            # is still required, but an escape after that terminal move is not.
+            # Power pellets do not end the episode and keep the usual gates.
+            terminal_collect = remaining_normal == {target}
+            if margin <= _SAFETY_MARGIN or (
+                not terminal_collect
+                and ((exits == 0 and lethal_tuple) or not safe_return)
             ):
                 continue
             collect.append(

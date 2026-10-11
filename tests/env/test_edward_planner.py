@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from pacman_env.env.state import Position
 from pacman_env.planner import EdwardPlanner, GhostETA
@@ -184,7 +184,7 @@ class EdwardPlannerSafetyTests(unittest.TestCase):
             width=6,
             height=12,
             open_tiles=frozenset(open_tiles),
-            pellets=positions((1, 5)),
+            pellets=positions((1, 5), (11, 2)),
             pacman_start=Position(1, 2),
         )
 
@@ -244,6 +244,62 @@ class EdwardPlannerSafetyTests(unittest.TestCase):
                 for item in candidates
             )
         )
+
+    def test_last_normal_pellet_skips_return_gate_and_continues(self) -> None:
+        level = replace(self._dead_end_level(), pellets=positions((1, 5)))
+        planner = EdwardPlanner(level)
+        ghosts = [{"id": 0, "position": [3, 2], "state": "normal"}]
+        candidates = planner.candidates(self._state(
+            (1, 2), open_actions=["L", "R", "D"], ghosts=ghosts,
+        ))
+        collect = next(c for c in candidates if c.strategy == "COLLECT")
+        self.assertEqual(collect.target, (1, 5))
+        self.assertGreater(collect.safety_margin, 1)
+        self.assertEqual(collect.future_safe_exits, 0)
+        action, status = planner.continue_option(collect, self._state(
+            (1, 3), open_actions=["L", "R"], ghosts=ghosts,
+        ))
+        self.assertEqual((action, status), ("R", "active"))
+        self.assertEqual(planner.continue_option(collect, self._state(
+            (1, 5), open_actions=["L"], ghosts=ghosts,
+        )), (None, "completed"))
+
+    def test_last_normal_with_remaining_power_pellet_is_terminal(self) -> None:
+        level = replace(self._dead_end_level(), pellets=positions((1, 5)),
+                        power_pellets=positions((11, 2)))
+        candidates = EdwardPlanner(level).candidates(self._state(
+            (1, 2), open_actions=["L", "R", "D"],
+            ghosts=[{"id": 0, "position": [4, 2], "state": "normal"}],
+        ))
+        self.assertTrue(any(c.strategy == "COLLECT" and c.target == (1, 5)
+                            for c in candidates))
+
+    def test_last_power_pellet_still_requires_safe_return(self) -> None:
+        level = replace(self._dead_end_level(), pellets=positions((11, 2)),
+                        power_pellets=positions((1, 5)))
+        candidates = EdwardPlanner(level).candidates(self._state(
+            (1, 2), open_actions=["L", "R", "D"],
+            ghosts=[{"id": 0, "position": [4, 2], "state": "normal"}],
+        ))
+        self.assertFalse(any(c.strategy == "COLLECT" and c.target == (1, 5)
+                             for c in candidates))
+
+    def test_last_normal_pellet_keeps_arrival_safety_gate(self) -> None:
+        level = replace(self._dead_end_level(), pellets=positions((1, 5)))
+        candidates = EdwardPlanner(level, fallback_mode="risk_ranked").candidates(
+            self._state((1, 2), open_actions=["L", "R", "D"],
+                        ghosts=[{"id": 0, "position": [2, 2], "state": "normal"}]))
+        self.assertFalse(any(c.strategy == "COLLECT" for c in candidates))
+
+    def test_last_normal_pellet_becomes_available_after_other_is_eaten(self) -> None:
+        planner = EdwardPlanner(self._dead_end_level())
+        state = self._state((1, 2), open_actions=["L", "R", "D"],
+                            ghosts=[{"id": 0, "position": [4, 2], "state": "normal"}])
+        self.assertFalse(any(c.strategy == "COLLECT" and c.target == (1, 5)
+                             for c in planner.candidates(state)))
+        planner.observe(self._state((11, 2), open_actions=["U"], ghosts=[]))
+        self.assertTrue(any(c.strategy == "COLLECT" and c.target == (1, 5)
+                            for c in planner.candidates(state)))
 
     def test_collect_never_routes_pacman_through_ghost_door(self) -> None:
         door = Position(1, 2)
