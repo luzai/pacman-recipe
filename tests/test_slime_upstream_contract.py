@@ -138,6 +138,8 @@ def test_metadata_survives_both_upstream_transport_boundaries():
         ("slime/backends/megatron_utils/model.py", "train_one_step"),
     ):
         path = UPSTREAM / relative
+        if relative == "slime/rollout/batch_builder.py" and not path.is_file():
+            path = UPSTREAM / "slime/data/batch_builder.py"
         if not path.is_file():
             pytest.skip("pinned slime checkout unavailable")
         tree = ast.parse(path.read_text(encoding="utf-8"))

@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import importlib.util
 from copy import deepcopy
 from io import BytesIO
 import math
@@ -215,7 +216,10 @@ def test_padding_preserves_episode_denominator_and_real_decisions():
 
 def test_real_upstream_conversion_keeps_support_and_episode_weights():
     Sample = pytest.importorskip("slime.utils.types").Sample
-    pytest.importorskip("slime.rollout.batch_builder")
+    if importlib.util.find_spec("slime.data") is None:
+        pytest.importorskip("slime.rollout.batch_builder")
+    else:
+        pytest.importorskip("slime.data.batch_builder")
     from slime_pacman.batching import convert_samples
 
     samples = []

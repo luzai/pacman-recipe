@@ -29,7 +29,7 @@ class SeededSmallMazeClient:
 def worker_init(game_root, ghosts):
     os.environ.update(
         PACMAN_PYTHON_ROOT=game_root,
-        SMALL_MAZE_GHOST_COUNT=str(ghosts),
+        SMALL_MAZE_GHOST_COUNT=str(ghosts or 1),
         PACMAN_CUSTOM_WALL_RENDER="1",
         CUDA_VISIBLE_DEVICES="",
         OMP_NUM_THREADS="1",
@@ -63,4 +63,5 @@ def collect_task(
         None,
         False,
         seed_context,
+        True,
     )

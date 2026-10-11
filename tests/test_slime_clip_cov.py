@@ -1,5 +1,6 @@
 """Clip-Cov whole-update selection and its masked policy-loss contract."""
 from types import SimpleNamespace
+import importlib.util
 
 import pytest
 import torch
@@ -130,7 +131,7 @@ def test_launch_inherits_clip_cov_declaration(monkeypatch, tmp_path):
 
 def test_real_upstream_conversion_annotates_and_writes_summary(monkeypatch, tmp_path):
     Sample = pytest.importorskip("slime.utils.types").Sample
-    pytest.importorskip("slime.rollout.batch_builder")
+    pytest.importorskip("slime.data.batch_builder" if importlib.util.find_spec("slime.data") else "slime.rollout.batch_builder")
     from slime_pacman.batching import convert_samples
 
     samples = []

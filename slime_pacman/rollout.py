@@ -44,6 +44,17 @@ class EpisodeRunner(PacmanEpisodeRunner):
         validate_episode_record(record, expected_sources=expected_sources)
         if record["environment"]["max_steps"] != config.max_steps:
             raise ValueError("episode horizon differs from the runner configuration")
+        from pacman_recipe.level1.prompts import prompt_contract_metadata
+        options = runner_options(config)
+        expected_prompt = prompt_contract_metadata(
+            options["image_prompt_style"], edward_options=options["edward_options"],
+            fallback_mode=config.edward_fallback_mode,
+        )
+        if record["prompt"] != expected_prompt or any(
+            record["environment"][key] != getattr(config, key)
+            for key in ("ghost_mode", "episode_life_mode")
+        ):
+            raise ValueError("episode prompt/life/ghost contract differs from runner configuration")
         self.record = record
         self.success_speed_bonus = config.success_speed_bonus
         self.decisions = []
@@ -62,7 +73,10 @@ class EpisodeRunner(PacmanEpisodeRunner):
         )
 
     async def _call_model(self, messages, **options):
-        constraint = options["objective_constraint"]
+        constraint = options.get("objective_constraint")
+        if constraint is None:
+            from pacman_recipe.level1.token_constraints import PrimitiveTokenConstraint
+            constraint = PrimitiveTokenConstraint.build(self.objective_tokenizer, options["current_open_actions"])
         decision = await self.generate(messages, constraint)
         constraint.option_for_tokens([decision.action_id])
         if decision.allowed_token_ids != constraint.allowed_token_ids:
@@ -368,7 +382,7 @@ async def _collect_episode(
 
 def collect_episode_in_worker(
     record, endpoint, hf_checkpoint, config_path, expected_sources, version, capture=None,
-    summary_only=False, seed_context=None,
+    summary_only=False, seed_context=None, bind_catalog_environment=False,
 ):
     """Worker-process entry point: one complete episode, tensors returned as numpy.
 
@@ -378,13 +392,17 @@ def collect_episode_in_worker(
     import asyncio
 
     tokenizer, processor = _worker_tokenizer_and_processor(hf_checkpoint)
+    config = load_config(config_path)
+    if bind_catalog_environment:
+        from dataclasses import replace
+        config = replace(config, ghost_mode=record["environment"]["ghost_mode"])
     episode = asyncio.run(
         _collect_episode(
             record,
             endpoint=endpoint,
             tokenizer=tokenizer,
             processor=processor,
-            config=load_config(config_path),
+            config=config,
             expected_sources=expected_sources,
             version=version,
             capture=capture,

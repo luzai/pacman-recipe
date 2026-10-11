@@ -37,7 +37,12 @@ def pad_schedule(data, dp_size):
 
 
 def convert_samples(args, samples):
-    from slime.rollout.batch_builder import BatchBuilder
+    try:
+        from slime.data.batch_builder import BatchBuilder
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"slime.data", "slime.data.batch_builder"}:
+            raise
+        from slime.rollout.batch_builder import BatchBuilder
 
     if args.micro_batch_size != 1 or args.use_dynamic_batch_size:
         raise ValueError("Pacman requires static microbatch=1")

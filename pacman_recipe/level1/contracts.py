@@ -66,7 +66,8 @@ def repository_identity(path):
 
 def make_episode_record(
     seed, *, split, recipe_root, game_root, backend_root, backend="slime", max_steps=512,
-    observation_mode="image", edward_fallback_mode="refuse", ascii_map_format="packed"
+    observation_mode="image", edward_fallback_mode="refuse", ascii_map_format="packed",
+    action_mode="edward", ghost_mode="normal", episode_life_mode="single_death"
 ):
     if observation_mode not in {'image', 'ascii'}:
         raise ValueError('Unsupported observation mode')
@@ -74,6 +75,10 @@ def make_episode_record(
         raise ValueError("ascii_map_format must be packed, or spaced with observation_mode=ascii")
     style = ("live_state_v3" if observation_mode != "ascii" else
              "ascii_edward_spaced_v1" if ascii_map_format == "spaced" else "ascii_edward_v1")
+    if action_mode not in ("edward", "primitive") or (action_mode == "primitive" and (observation_mode != "ascii" or ascii_map_format != "spaced" or edward_fallback_mode != "refuse")):
+        raise ValueError("unsupported action/observation combination")
+    if action_mode == "primitive":
+        style = "ascii_primitive_spaced_v1"
     if (
         backend not in {"slime", "areal"}
         or split not in {"train", "validation", "test"}
@@ -89,8 +94,8 @@ def make_episode_record(
         PygamePacmanEnvConfig(
             pacman_python_root=game_root,
             max_steps=max_steps,
-            ghost_mode="normal",
-            episode_life_mode="single_death",
+            ghost_mode=ghost_mode,
+            episode_life_mode=episode_life_mode,
         )
     ) as env:
         info, spec = env.provenance, env.spec
@@ -101,8 +106,8 @@ def make_episode_record(
             level=1,
             seed=seed,
             max_steps=max_steps,
-            ghost_mode="normal",
-            episode_life_mode="single_death",
+            ghost_mode=ghost_mode,
+            episode_life_mode=episode_life_mode,
             observation_mode="rgb",
             pacman_python_revision=info["pacman_python_commit"],
             pacman_python_source_sha256=info["pacman_python_source_sha256"],
@@ -122,7 +127,7 @@ def make_episode_record(
         environment=environment,
         source_revisions=sources,
         prompt=prompt_contract_metadata(style,
-                                        edward_options=True, fallback_mode=edward_fallback_mode),
+                                        edward_options=action_mode == "edward", fallback_mode=edward_fallback_mode),
     )
 
 
@@ -147,12 +152,13 @@ def validate_episode_record(record, *, expected_sources=None):
                 raise ValueError("invalid source hash")
     known_prompts = [prompt_contract_metadata(style, edward_options=True, fallback_mode=mode)
                      for style in ("live_state_v3", "ascii_edward_v1", "ascii_edward_spaced_v1") for mode in ("refuse", "risk_ranked")]
+    known_prompts.append(prompt_contract_metadata("ascii_primitive_spaced_v1", edward_options=False))
     if record.get("prompt") not in known_prompts:
         raise ValueError("prompt contract changed; regenerate data")
     env = record["environment"]
     if (
-        env.get("ghost_mode") != "normal"
-        or env.get("episode_life_mode") != "single_death"
+        env.get("ghost_mode") not in ("normal", "disabled")
+        or env.get("episode_life_mode") not in ("single_death", "original_three_lives")
     ):
         raise ValueError("C2 requires normal ghosts and single_death")
     if (

@@ -709,6 +709,8 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
                 actual = prompts.ascii_decision_prompt_for(style, context, candidates, constraint, context['ascii_map'], fallback_mode=fallback_mode)
             else:
                 actual = prompt_module.render_vision_edward_decision_prompt(context, candidates, constraint, fallback_mode=fallback_mode)
+        elif style == "ascii_primitive_spaced_v1":
+            actual = prompts.primitive_decision_prompt(context)
         else:
             actual = (
                 live_state_instruction(context)

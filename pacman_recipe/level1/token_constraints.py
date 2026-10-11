@@ -127,3 +127,20 @@ class ObjectiveTokenConstraint:
         if len(actual) != 1:
             raise ObjectiveParseError("objective output must contain exactly one token")
         return [self.allowed_token_ids]
+
+
+class PrimitiveTokenConstraint(ObjectiveTokenConstraint):
+    """Direct U/D/L/R support; no Edward code remapping."""
+    @classmethod
+    def build(cls, tokenizer, actions):
+        actions = tuple(actions)
+        values=tuple(a for a in 'UDLR' if a in actions)
+        if not values or set(actions)-set('UDLR'):
+            raise ValueError('Primitive requires nonempty legal U/D/L/R support')
+        sequences=tuple(tuple(tokenizer.encode(a,add_special_tokens=False)) for a in values)
+        if any(len(s)!=1 or s[0] in tokenizer.all_special_ids for s in sequences) or len(set(sequences))!=len(values):
+            raise ValueError('Primitive actions must be distinct nonspecial single tokens')
+        for a,s in zip(values,sequences):
+            if tokenizer.decode(list(s),skip_special_tokens=False,clean_up_tokenization_spaces=False)!=a:
+                raise ValueError('Primitive token does not round-trip')
+        return cls(values,values,sequences)

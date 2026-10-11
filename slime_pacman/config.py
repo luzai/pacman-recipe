@@ -26,8 +26,17 @@ class PacmanConfig:
     observation_mode: str = "image"
     ascii_map_format: str = "packed"
     vision_image_contract: str = "qwen-min-pixels-537600"
+    action_mode: str = "edward"
+    episode_life_mode: str = "single_death"
+    ghost_mode: str = "normal"
 
     def __post_init__(self):
+        if self.action_mode not in ("edward", "primitive"):
+            raise ValueError("unsupported action mode")
+        if self.episode_life_mode not in ("single_death", "original_three_lives") or self.ghost_mode not in ("normal", "disabled"):
+            raise ValueError("unsupported life/ghost mode")
+        if self.action_mode == "primitive" and (self.observation_mode != "ascii" or self.ascii_map_format != "spaced" or self.edward_fallback_mode != "refuse"):
+            raise ValueError("Primitive requires spaced ASCII and refuse fallback")
         if self.observation_mode not in {'image', 'ascii'}:
             raise ValueError('Unsupported observation mode')
         if self.ascii_map_format not in ("packed", "spaced") or (
@@ -92,16 +101,19 @@ def runner_options(config: PacmanConfig):
     from pacman_recipe.level1.prompts import prompt_contract_metadata
     style = ("live_state_v3" if config.observation_mode != "ascii" else
              "ascii_edward_spaced_v1" if config.ascii_map_format == "spaced" else "ascii_edward_v1")
-    prompt = prompt_contract_metadata(style, edward_options=True,
+    if config.action_mode == "primitive":
+        style = "ascii_primitive_spaced_v1"
+    prompt = prompt_contract_metadata(style, edward_options=config.action_mode == "edward",
                                      fallback_mode=config.edward_fallback_mode)
     return dict(
-        edward_options=True,
+        edward_options=config.action_mode == "edward",
+        **({"open_action_mask": True} if config.action_mode == "primitive" else {}),
         edward_fallback_mode=config.edward_fallback_mode,
         enable_thinking=False,
         image_prompt_style=style,
         prompt_version=prompt['prompt_version'],
-        episode_life_mode="single_death",
-        ghost_mode="normal",
+        episode_life_mode=config.episode_life_mode,
+        ghost_mode=config.ghost_mode,
         environment_max_steps=config.max_steps,
         temperature=config.temperature,
         top_p=1.0,

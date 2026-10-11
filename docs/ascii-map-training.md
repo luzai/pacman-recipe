@@ -2,6 +2,26 @@
 
 Based on pacman-recipe a34e54a; retains the visual-grounding SFT recipe.
 
+## Primitive spaced ASCII support
+
+`action_mode: primitive` with `observation_mode: ascii` and
+`ascii_map_format: spaced` selects indexed ASCII maps and direct legal U/D/L/R
+tokens. Edward option prompts and fallback remain separate and unchanged.
+Episode records bind the action protocol, ghost mode and life mode; workers
+preserve those settings. Runtime and dataset identities must be regenerated
+when changing prompt contracts.
+
+Small-map generation can optionally add pellets to existing empty floor using
+`small_floor_pellets=True`; this is restricted to maps below 11 rows and retains
+protected spawn, portal, door and power-pellet tiles. A 7x7 template is included
+in `configs/slime/maps/template-7.txt`.
+
+The training adapter supports the pinned `slime.data.batch_builder` module and
+falls back to the older rollout module only when the new module is absent.
+These changes do not enable reference KL, replay, backplay or reward shaping.
+SGLang overlap tensor/list fixes are independent runtime patches and are not
+included in this recipe commit.
+
 ## Planner terminal collection
 
 The last normal pellet ends the episode. COLLECT still requires safe arrival,

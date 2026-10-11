@@ -207,6 +207,8 @@ USER_INSTRUCTION = MINIMAL_V1_USER_INSTRUCTION
 
 
 def prompt_text(prompt_style: str) -> tuple[str, str]:
+    if prompt_style == "ascii_primitive_spaced_v1":
+        return ASCII_PRIMITIVE_SYSTEM, ASCII_PRIMITIVE_TEMPLATE
     if prompt_style == "ascii_edward_spaced_v1":
         return ASCII_SPACED_EDWARD_SYSTEM_PROMPT, ASCII_EDWARD_USER_TEMPLATE
     if prompt_style == "ascii_edward_v1":
@@ -286,6 +288,10 @@ def prompt_user_template(
     prompt_style: str, *, edward_options: bool, fallback_mode: str = "refuse"
 ) -> str:
     validate_fallback_mode(fallback_mode, edward_options=edward_options)
+    if prompt_style == "ascii_primitive_spaced_v1":
+        if edward_options:
+            raise ValueError("Primitive style cannot use Edward options")
+        return ASCII_PRIMITIVE_TEMPLATE
     if prompt_style == "ascii_edward_spaced_v1":
         if not edward_options:
             raise ValueError("ASCII Edward requires Edward options")
@@ -311,6 +317,10 @@ def prompt_contract_metadata(
     This is a template fingerprint, not a claim that per-turn prompts are equal.
     Trajectories separately fingerprint the exact rendered messages and image.
     """
+    if prompt_style == "ascii_primitive_spaced_v1":
+        if edward_options or fallback_mode != "refuse":
+            raise ValueError("Primitive requires direct actions and refuse fallback")
+        return primitive_prompt_metadata()
     if prompt_style == "ascii_edward_spaced_v1":
         if not edward_options:
             raise ValueError("ASCII Edward requires Edward options")
@@ -593,7 +603,7 @@ def ascii_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse") -> d
 # ascii_edward_v1; only the map is laid out one cell per token (ascii_observation_spaced) and the
 # legend says so. ascii_edward_v1 text, renderers and fingerprints are untouched.
 ASCII_SPACED_EDWARD_STYLE = "ascii_edward_spaced_v1"
-ASCII_STYLES = ("ascii_edward_v1", ASCII_SPACED_EDWARD_STYLE)
+ASCII_STYLES = ("ascii_edward_v1", ASCII_SPACED_EDWARD_STYLE, "ascii_primitive_spaced_v1")
 _PACKED_LEGEND_END = "= tunnel/level door, space empty."
 _SPACED_LEGEND_END = "= tunnel/level door, _ empty; map cells are separated by single spaces."
 if ASCII_EDWARD_SYSTEM_PROMPT.count(_PACKED_LEGEND_END) != 1:
@@ -639,6 +649,9 @@ def ascii_decision_prompt_for(style, state_context, candidates, constraint, map_
 
 
 def render_ascii_map_for(style, level, snapshot):
+    if style == "ascii_primitive_spaced_v1":
+        from .ascii_observation_spaced import render_ascii_map_spaced
+        return render_ascii_map_spaced(level, snapshot)
     from .ascii_observation import render_ascii_map
     from .ascii_observation_spaced import render_ascii_map_spaced
     if style == ASCII_SPACED_EDWARD_STYLE:
@@ -667,3 +680,27 @@ def ascii_spaced_edward_prompt_contract_metadata(*, fallback_mode: str = "refuse
         "system_prompt_sha256": text_sha256(ASCII_SPACED_EDWARD_SYSTEM_PROMPT),
         "user_prompt_template_sha256": text_sha256(template),
     }
+
+
+ASCII_PRIMITIVE_SYSTEM = (
+    "Play Pac-Man using the current spaced ASCII map and authoritative game state. "
+    "Coordinates are [row,column], starting at 0. Legend: # wall, _ empty, . normal pellet, "
+    "o power pellet, P Pac-Man, G dangerous ghost, V vulnerable ghost, E eyes, - ghost door, = portal. "
+    "Collect all normal pellets to clear the level. Avoid dangerous ghosts when present. "
+    "The state specifies the life mode and ghost mode. Return exactly one advertised OPEN "
+    "direction U, D, L or R, with no explanation. No options or macro actions are available."
+)
+ASCII_PRIMITIVE_TEMPLATE = "{ascii_map}\n\n{authoritative_state}\nLife mode: {episode_life_mode}. Ghost mode: {ghost_mode}."
+
+def primitive_decision_prompt(context):
+    state = 'GAME STATE' + live_state_instruction(context).split('GAME STATE', 1)[1]
+    return context['ascii_map']+'\n\n'+state+'\nLife mode: '+str(context['episode_life_mode'])+'. Ghost mode: '+str(context['ghost_mode'])+'.'
+
+def primitive_prompt_metadata():
+    from . import ascii_observation_spaced
+    fingerprint = dict(system=ASCII_PRIMITIVE_SYSTEM, template=ASCII_PRIMITIVE_TEMPLATE,
+        renderer=inspect.getsource(primitive_decision_prompt), state=inspect.getsource(live_state_instruction),
+        map=inspect.getsource(ascii_observation_spaced))
+    return dict(action_protocol='direct-open-action-token-v1',prompt_version='ascii-primitive-spaced-v1',
+        prompt_template_sha256=text_sha256(json.dumps(fingerprint,sort_keys=True)),
+        system_prompt_sha256=text_sha256(ASCII_PRIMITIVE_SYSTEM),user_prompt_template_sha256=text_sha256(ASCII_PRIMITIVE_TEMPLATE))

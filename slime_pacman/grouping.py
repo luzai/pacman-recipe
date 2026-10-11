@@ -9,16 +9,19 @@ def binary_reward(payload):
         "canonical_action_violations", 0
     ):
         raise ValueError("generation failure cannot become an ordinary losing episode")
-    if payload.get("episode_life_mode") != "single_death":
-        raise ValueError("binary C2 requires single_death")
+    if payload.get("episode_life_mode") not in ("single_death", "original_three_lives"):
+        raise ValueError("binary completion requires a supported episode life mode")
     reason = payload.get("terminal_reason")
-    if reason not in {
+    valid_reasons = {
         "all_normal_pellets",
         "death",
         "max_steps",
         "safety_refusal",
         "unreachable_normal_pellets",
-    }:
+    }
+    if payload["episode_life_mode"] == "original_three_lives":
+        valid_reasons.add("game_over")
+    if reason not in valid_reasons:
         raise ValueError(f"unrecognized game terminal: {reason}")
     won = reason == "all_normal_pellets"
     if bool(payload.get("won")) != won or (

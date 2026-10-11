@@ -51,8 +51,10 @@ def validate_binding(task):
         raise ValueError("formal rollout requires initial stage")
     if record["environment"]["level_revision"] != task["layout_sha256"]:
         raise ValueError("record and frozen layout identity differ")
-    if task["ghosts"] not in (1, 2, 4):
+    if task["ghosts"] not in (0, 1, 2, 4):
         raise ValueError("unsupported ghost count")
+    if (task["ghosts"] == 0) != (record["environment"]["ghost_mode"] == "disabled"):
+        raise ValueError("catalog effective ghost count disagrees with episode record")
     return record, dict(game_root=task["game_root"], ghosts=task["ghosts"])
 
 

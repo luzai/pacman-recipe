@@ -485,7 +485,7 @@ class PacmanEpisodeRunner:
         scripted_objectives = list(options.get("scripted_objectives") or [])
         scripted_ids = list(options.get("scripted_completion_ids") or [])
         edward_options = bool(options.get("edward_options", False))
-        if ascii_observation and not edward_options:
+        if ascii_observation and not edward_options and image_prompt_style != "ascii_primitive_spaced_v1":
             raise ValueError('ASCII experiment requires Edward actions')
         fallback_mode = validate_fallback_mode(
             options.get("edward_fallback_mode", "refuse"), edward_options=edward_options
@@ -784,7 +784,7 @@ class PacmanEpisodeRunner:
                         "live environment reported no open movement actions"
                     )
                 state_context = None
-                if image_prompt_style in ("live_state_v3", "ascii_edward_v1", "ascii_edward_spaced_v1"):
+                if image_prompt_style in ("live_state_v3", *ASCII_STYLES):
                     position = (
                         int(previous_info["pacman_position"][0]),
                         int(previous_info["pacman_position"][1]),
@@ -887,7 +887,7 @@ class PacmanEpisodeRunner:
                     )
                 if ascii_observation:
                     from .prompts import render_ascii_map_for
-                    state_context['ascii_map'] = render_ascii_map_for(image_prompt_style, planner.level, live_snapshot)
+                    state_context['ascii_map'] = render_ascii_map_for(image_prompt_style, active_level, live_snapshot)
                     messages = [dict(role='system', content=system_prompt),
                                 dict(role='user', content=[dict(type='text', text='')])]
                 else:
@@ -904,8 +904,12 @@ class PacmanEpisodeRunner:
                         from .prompts import ascii_decision_prompt_for, render_ascii_map_for
                         model_user_instruction = ascii_decision_prompt_for(
                             image_prompt_style, state_context, option_candidates, objective_constraint,
-                            render_ascii_map_for(image_prompt_style, planner.level, live_snapshot), fallback_mode=fallback_mode)
-                        state_context["ascii_map"] = render_ascii_map_for(image_prompt_style, planner.level, live_snapshot)
+                            render_ascii_map_for(image_prompt_style, active_level, live_snapshot), fallback_mode=fallback_mode)
+                        state_context["ascii_map"] = render_ascii_map_for(image_prompt_style, active_level, live_snapshot)
+                if image_prompt_style == "ascii_primitive_spaced_v1":
+                    from .prompts import primitive_decision_prompt
+                    state_context["ghost_mode"] = config.ghost_mode
+                    model_user_instruction = primitive_decision_prompt(state_context)
                 if ascii_observation:
                     messages[1]["content"][0]["text"] = model_user_instruction
                 else:

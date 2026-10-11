@@ -1,6 +1,7 @@
 import asyncio
 import ast
 import copy
+import os
 from pathlib import Path
 import random
 from types import SimpleNamespace
@@ -17,7 +18,10 @@ MIXED, WIN, LOSS = [1.0] * 6 + [0.0] * 6, [1.0] * 12, [0.0] * 12
 
 def upstream_source(records):
     # Execute the actual pinned allocation method without importing GPU dependencies.
-    path = Path(__file__).resolve().parents[2] / "slime/slime/rollout/data_source.py"
+    root = Path(os.environ.get("SLIME_ROOT", Path(__file__).resolve().parents[2] / "slime"))
+    path = root / "slime/data/data_source.py"
+    if not path.exists():
+        path = root / "slime/rollout/data_source.py"
     tree = ast.parse(path.read_text())
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "RolloutDataSource")
     method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "get_samples")

@@ -69,7 +69,8 @@ def gate(text):
     )
 
 
-def generate(template, *, seed, counts, swaps=4, excluded=(), attempts=10000):
+def generate(template, *, seed, counts, swaps=4, excluded=(), attempts=10000,
+             small_floor_pellets=False):
     """Return layouts without writes. Freeze splits before any model evaluation.
 
     Supply a template for each desired size; protect the central ghost house.
@@ -87,16 +88,20 @@ def generate(template, *, seed, counts, swaps=4, excluded=(), attempts=10000):
         (r, c)
         for r in range(1, height - 1)
         for c in range(1, width - 1)
-        if r not in protected and 100 <= original[r][c] < 200
+        if (height < 11 or r not in protected) and 100 <= original[r][c] < 200
     ]
     pellets = [
         (r, c)
         for r in range(1, height - 1)
         for c in range(1, width - 1)
-        if r not in protected and original[r][c] == 2
+        if (height < 11 or r not in protected) and original[r][c] == 2
     ]
+    if small_floor_pellets and height >= 11:
+        raise ValueError("small floor mutation is restricted to maps below 11")
     if swaps < 1 or min(len(walls), len(pellets)) < swaps:
         raise ValueError("template lacks mutation cells")
+    floor_cells = [(r, c) for r in range(1, height - 1)
+                   for c in range(1, width - 1) if original[r][c] == 0]
     used = set(excluded) | {canonical(original)}
     rows = []
     schedule = [
@@ -105,10 +110,17 @@ def generate(template, *, seed, counts, swaps=4, excluded=(), attempts=10000):
     for attempt in range(attempts):
         rng = random.Random(seed + attempt)
         grid = [row[:] for row in original]
-        for r, c in rng.sample(walls, swaps):
+        active_swaps = rng.randint(1, swaps) if height < 11 else swaps
+        for r, c in rng.sample(walls, active_swaps):
             grid[r][c] = 2
-        for r, c in rng.sample(pellets, swaps):
+        for r, c in rng.sample(pellets, active_swaps):
             grid[r][c] = 100
+        if small_floor_pellets:
+            # Only add ordinary pellets to existing traversable empty floor.
+            # Spawn, door, portal, power and fruit tiles remain byte-identical.
+            for r, c in floor_cells:
+                if rng.random() < 0.5:
+                    grid[r][c] = 2
         equivalent = canonical(grid)
         if equivalent in used:
             continue

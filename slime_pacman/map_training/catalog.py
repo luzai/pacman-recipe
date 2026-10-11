@@ -25,20 +25,22 @@ def main():
     if output.exists():
         raise FileExistsError("refuse replacing a frozen catalog")
     output.mkdir(parents=True)
-    used, catalog = set(), []
+    used, catalog = set(spec.get("excluded_equivalence_sha256", [])), []
     original_env = dict(os.environ)
     try:
         from pacman_recipe.level1.contracts import make_episode_record
 
         recipe = Path(__file__).resolve().parents[2]
         for tier, settings in enumerate(spec["tiers"]):
-            if settings["ghosts"] not in (1, 2, 4):
+            if settings["ghosts"] not in (0, 1, 2, 4):
                 raise ValueError("unsupported ghost count")
             rows = generate(
                 Path(settings["template"]).read_text(),
                 seed=settings["seed"],
                 counts=settings["counts"],
                 excluded=used,
+                swaps=settings.get("swaps", 4),
+                small_floor_pellets=settings.get("small_floor_pellets", False),
             )
             for index, row in enumerate(rows):
                 used.add(row["equivalence_sha256"])
@@ -70,7 +72,7 @@ def main():
                     )
                 os.environ.update(
                     PACMAN_PYTHON_ROOT=str(game),
-                    SMALL_MAZE_GHOST_COUNT=str(settings["ghosts"]),
+                    SMALL_MAZE_GHOST_COUNT=str(settings["ghosts"] or 1),
                     PACMAN_CUSTOM_WALL_RENDER="1",
                 )
                 for game_seed in settings.get("game_seeds", [0]):
@@ -84,7 +86,10 @@ def main():
                         max_steps=options.max_steps,
                         observation_mode="ascii",
                         ascii_map_format="spaced",
-                        edward_fallback_mode="risk_ranked",
+                        action_mode=spec.get("action_mode", "edward"),
+                        ghost_mode="disabled" if settings["ghosts"] == 0 else "normal",
+                        episode_life_mode=spec.get("episode_life_mode", "single_death"),
+                        edward_fallback_mode="refuse" if spec.get("action_mode", "edward") == "primitive" else "risk_ranked",
                     )
                     record["id"] = task_id
                     if record["environment"]["level_revision"] != row["layout_sha256"]:

@@ -13,7 +13,7 @@ def catalog():
             layout_sha256=f"{i:064x}",
             ghosts=2,
             game_root="/private/game",
-            episode_record={"environment": {"level_revision": f"{i:064x}"}},
+            episode_record={"environment": {"level_revision": f"{i:064x}", "ghost_mode": "normal"}},
         )
         for i in range(16)
     ]
