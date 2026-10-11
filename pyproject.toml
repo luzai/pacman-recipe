@@ -19,7 +19,7 @@ h100-offload = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["pacman_recipe*", "pacman_env*", "slime_pacman*", "areal_pacman*", "maapacman*"]
+include = ["pacman_recipe*", "pacman_env*", "slime_pacman*", "areal_pacman*", "maapacman*", "vg_sft*"]
 
 [tool.setuptools.package-data]
 "pacman_recipe.synthetic" = ["maze_suites/*.json"]
