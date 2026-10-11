@@ -27,16 +27,22 @@ iteration marker. Call publish only after a synchronous model/Adam/RNG save;
 restore verifies bytes and iteration identity. It does not prove actual GPU
 optimizer or RNG restoration.
 
-## Integration boundary
+## Portable entry points
 
-These reusable contracts do not install a rollout entry point or launch a run.
-Remaining integration includes custom map game/planner/reward binding, catalog
-generation, worker dispatch, lifecycle hook wrappers, scheduler/budget recovery,
-reference KL, fixed validation panels, and container preflight. Historical run
-scripts and their absolute server paths are deliberately not launch defaults.
+Run from the recipe root in the locked Linux training container.
 
-Related dependency branches already published:
+- `python -m slime_pacman.map_training.catalog --spec maps.json --output /private/catalog --game-root /pinned/game --slime-root /pinned/slime`: generate private game roots and initial-stage records. The JSON spec contains tiers with template paths, ghosts, seed, game_seeds, and train/validation/test counts. Templates for 11, 13, 15 are in configs/slime/maps; supply the original game's 21x25 level for the final tier. Freeze catalogs before model evaluation. Reusing existing held-out maps requires importing their unchanged rows rather than regenerating replacements.
+- Put catalog rows into PACMAN_FORMAL_CONFIG, together with policy, max_tier, seed and optimizer_budget. Set PACMAN_SLIME_CONFIG to the existing ASCII/spaced recipe config, and PACMAN_RUN_DIR to a private run directory.
+- `python -m slime_pacman.map_training.runtime_check --container NAME --lock runtime-lock.json --output receipts --slime-root /pinned/slime`: verify the exact image ID, CPU dependency versions and installed sampler/overlap file hashes. Use --install-patches only before starting inference; it invokes the guarded installers in slime. The runtime lock requires image_id, versions and runtime_files mappings. This generates IMAGE_CONTENT_VERIFIED.json and RUNTIME_CPU_VERIFIED.json; it does not start GPU inference.
+- `python -m slime_pacman.map_training.launch --spec launch.json`: launch an explicitly configured slime argv. The spec includes argv, environment, source_root, source_manifest (relative file -> SHA), runtime_receipts, image_id, wall_seconds, opening_only=true, dynamic_bank=false, failure_bank=false, backplay=false. The argv supplies --num-rollout, --load, --save and the unchanged model/batch/optimizer settings. Cold start uses the merged SFT; checkpoint recovery adds --restore and retains the exact original spec and deadline. Native checkpoint scheduler, Adam and RNG loading are retained; no experiment-specific LR rewrite is installed.
+
+The entry point sets the three lifecycle hooks, synchronous saves and resume validation. Overlap remains enabled. Reference KL is intentionally excluded and rejected by this launch path. Existing generic recipe capabilities remain available to other experiments.
+
+Validation rows may label panel=original8 or panel=new16; both reward and win rate are recorded separately, with common frozen per-decision seeds. Test rows do not drive promotion or checkpoint selection. Map generation deduplicates rotations/reflections and rejects disconnected pellet layouts; this is a CPU gate, not a claim about task difficulty or policy wins.
+
+## Dependency pins and acceptance
+
 - luzai/pacman-python: codex/map-curriculum-game-fixes, 8b2bd556bd6cd707a55b3746f21b6c7bfdf30c88
-- luzai/slime: codex/map-curriculum-runtime-hooks, 40e4c44af03445bd18948e7d378f20242dfa7b6e
+- luzai/slime: main, 33758cf5b98f5a55e100eb3c8f7aa0c39b32e87e
 
-CPU tests cover the contracts; new GPU training/recovery acceptance is pending.
+The slime merge retains main's straw restore handoff and paused checkpoint admission. Use exact SHAs and regenerate records/manifests after source changes. GPU training, real tokenizer/SGLang serving and full Adam/RNG recovery must be accepted with these newly integrated sources before a new run; no new training was started during integration.

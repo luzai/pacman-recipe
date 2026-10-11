@@ -31,7 +31,7 @@ from pacman_env.errors import (
 )
 
 from .config import PacmanEnvSpec
-from .ghost_modes import validate_ghost_mode, validate_ghost_state
+from .ghost_modes import validate_ghost_mode, validate_ghost_state, active_ghost_count
 from ._saved_state import SCHEMA as SAVED_STATE_SCHEMA, checksum
 
 
@@ -52,6 +52,8 @@ RULESET_CONTRACT = {
 }
 def ruleset_revision(ghost_mode: str = "normal") -> str:
     contract = {**RULESET_CONTRACT, "ghost_mode": validate_ghost_mode(ghost_mode)}
+    if active_ghost_count() != 4:
+        contract["small_maze_active_ghost_count"] = active_ghost_count()
     return hashlib.sha256(
         (json.dumps(contract, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     ).hexdigest()

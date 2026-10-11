@@ -67,7 +67,8 @@ def test_command_reports_matching_launcher_environment(monkeypatch, tmp_path, ca
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PACMAN_RUN_DIR", "/stale")
     monkeypatch.setattr(sys, "argv", ["command", "--model", "/model", "--dataset", "/data",
-        "--config", str(root / "configs/slime/c2.yaml"), "--run-dir", "new-run"])
+        "--config", str(root / "configs/slime/c2.yaml"), "--run-dir", "new-run",
+        "--slime-root", os.environ.get("SLIME_ROOT", str(root.parent / "slime"))])
     main()
     result = json.loads(capsys.readouterr().out)
     argv, env = result["argv"], result["environment"]

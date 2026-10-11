@@ -629,6 +629,7 @@ class _PygameBridge:
                     }
                     for index in range(4)
                     if self._ghost_mode == "normal"
+                    and index < int(os.environ.get("SMALL_MAZE_GHOST_COUNT", "4"))
                 ],
                 "fruit": {
                     "active": bool(fruit.active),

@@ -1,6 +1,14 @@
 """Shared, fail-closed ghost-mode contract for live state and saved evidence."""
 
 from typing import Any, Mapping
+import os
+
+def active_ghost_count():
+    count = int(os.environ.get("SMALL_MAZE_GHOST_COUNT", "4"))
+    if count not in (1, 2, 4):
+        raise ValueError("active ghost count must be 1, 2 or 4")
+    return count
+
 
 GHOST_MODES = ("disabled", "normal")
 
@@ -17,7 +25,7 @@ def validate_ghost_state(state: Mapping[str, Any], expected: str) -> None:
         raise ValueError("ghost_mode does not match environment evidence")
     ghosts = state.get("ghosts")
     if not isinstance(ghosts, list) or len(ghosts) != (
-        0 if expected == "disabled" else 4
+        0 if expected == "disabled" else active_ghost_count()
     ):
         raise ValueError("ghost count does not match ghost_mode")
     if expected == "disabled":

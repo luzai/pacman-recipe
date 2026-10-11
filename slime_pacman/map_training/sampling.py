@@ -18,10 +18,16 @@ class FormalSampler:
             if sha in splits and splits[sha] != r['split']:
                 raise ValueError('layout split leakage')
             splits[sha] = r['split']
+        equivalents = {}
+        for row in catalog:
+            equivalent = row.get('equivalence_sha256', row['layout_sha256'])
+            if equivalent in equivalents and equivalents[equivalent] != row['split']:
+                raise ValueError('equivalent layout split leakage')
+            equivalents[equivalent] = row['split']
         self.by_tier = {}
         for tier in range(max_tier + 1):
             rows = sorted((r for r in catalog if r['split'] == 'train' and r['tier'] == tier),
-                          key=lambda r: r['task_id'])
+                          key=lambda r: (r.get('game_seed', 0), r['task_id']))
             if len({r['layout_sha256'] for r in rows}) < 8:
                 raise ValueError('each tier requires at least eight train layouts')
             self.by_tier[tier] = rows

@@ -559,17 +559,15 @@ class PacmanEpisodeRunner:
                 raise ValueError("stuck_no_progress_steps must be positive")
         no_progress_steps = 0
         episode_started_at = time.monotonic()
-        level = (
-            load_bundled_level(config.level)
-            if reward_config.nearest_pellet_alpha > 0
-            else None
-        )
+        from slime_pacman.map_training.maps import load_runtime_level
+        active_level = load_runtime_level(config.level, config.pacman_python_root)
+        level = active_level if reward_config.nearest_pellet_alpha > 0 else None
         remaining_normal_pellets = (
             set(level.pellets) if level is not None else None
         )
         planner = (
-            (EdwardPlanner(fallback_mode=fallback_mode) if fallback_mode != "refuse"
-             else EdwardPlanner())
+            (EdwardPlanner(level=active_level, fallback_mode=fallback_mode) if fallback_mode != "refuse"
+             else EdwardPlanner(level=active_level))
             if edward_options else None
         )
         active_option: PlannerCandidate | None = None
@@ -652,7 +650,7 @@ class PacmanEpisodeRunner:
             # Reward coefficients retain their true-start interpretation even
             # when episode metrics measure only the learner's suffix.
             reward_normal_pellets_initial = (
-                len(load_bundled_level(config.level).pellets)
+                len(active_level.pellets)
                 if restart_saved is not None else initial_normal_pellets
             )
             if restart_saved is not None and remaining_normal_pellets is not None:

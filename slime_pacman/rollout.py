@@ -311,7 +311,7 @@ def audit_failure_count():
 
 
 async def _collect_episode(
-    record, *, endpoint, tokenizer, processor, config, expected_sources, version, capture=None
+    record, *, endpoint, tokenizer, processor, config, expected_sources, version, capture=None, seed_context=None
 ):
     import httpx
     from collections import deque
@@ -321,6 +321,9 @@ async def _collect_episode(
     async with httpx.AsyncClient(
         timeout=120.0, limits=httpx.Limits(max_keepalive_connections=0)
     ) as client:
+        if seed_context is not None:
+            from .map_training.workers import SeededSmallMazeClient
+            client = SeededSmallMazeClient(client, seed_context)
         generator = SGLangGenerator(
             processor=processor,
             endpoint=endpoint,
@@ -365,7 +368,7 @@ async def _collect_episode(
 
 def collect_episode_in_worker(
     record, endpoint, hf_checkpoint, config_path, expected_sources, version, capture=None,
-    summary_only=False,
+    summary_only=False, seed_context=None,
 ):
     """Worker-process entry point: one complete episode, tensors returned as numpy.
 
@@ -385,6 +388,7 @@ def collect_episode_in_worker(
             expected_sources=expected_sources,
             version=version,
             capture=capture,
+            seed_context=seed_context,
         )
     )
     if summary_only:
