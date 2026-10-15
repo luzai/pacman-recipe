@@ -397,7 +397,7 @@ class EdwardPlannerSafetyTests(unittest.TestCase):
             pellets=frozenset(),
             pacman_start=Position(1, 2),
         )
-        planner = EdwardPlanner(corridor)
+        planner = EdwardPlanner(corridor, fallback_mode="refuse")
         emergency = planner.advertised_candidates(
             self._state(
                 (1, 2),
@@ -418,7 +418,7 @@ class EdwardPlannerSafetyTests(unittest.TestCase):
             pellets=frozenset(),
             pacman_start=Position(1, 2),
         )
-        one_step = EdwardPlanner(one_step_level).advertised_candidates(
+        one_step = EdwardPlanner(one_step_level, fallback_mode="refuse").advertised_candidates(
             self._state(
                 (1, 2),
                 open_actions=["L", "R"],
@@ -439,7 +439,7 @@ class EdwardPlannerSafetyTests(unittest.TestCase):
         self.assertEqual(one_step.safety_margin, 1)
         self.assertEqual(one_step.future_safe_exits, 1)
 
-        pixel_trap = EdwardPlanner()
+        pixel_trap = EdwardPlanner(fallback_mode="refuse")
         pixel_trap.remaining.clear()
         with self.assertRaisesRegex(RuntimeError, "no ghost-safe action"):
             pixel_trap.advertised_candidates(
@@ -469,7 +469,7 @@ class EdwardPlannerSafetyTests(unittest.TestCase):
                 )
             )
 
-        trapped = EdwardPlanner()
+        trapped = EdwardPlanner(fallback_mode="refuse")
         trapped.remaining.clear()
         with self.assertRaisesRegex(RuntimeError, "no ghost-safe action"):
             trapped.advertised_candidates(

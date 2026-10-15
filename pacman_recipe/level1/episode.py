@@ -28,7 +28,7 @@ from pacman_env.planner import (
     EdwardSafetyRefusal,
     PlannerCandidate,
     nearest_lethal_ghost_distance,
-    validate_fallback_mode,
+    resolve_fallback_mode,
 )
 
 from ..actions import ActionParseError, parse_action
@@ -487,8 +487,8 @@ class PacmanEpisodeRunner:
         edward_options = bool(options.get("edward_options", False))
         if ascii_observation and not edward_options and image_prompt_style != "ascii_primitive_spaced_v1":
             raise ValueError('ASCII experiment requires Edward actions')
-        fallback_mode = validate_fallback_mode(
-            options.get("edward_fallback_mode", "refuse"), edward_options=edward_options
+        fallback_mode = resolve_fallback_mode(
+            options.get("edward_fallback_mode"), edward_options=edward_options
         )
         if edward_options:
             if (
@@ -566,8 +566,7 @@ class PacmanEpisodeRunner:
             set(level.pellets) if level is not None else None
         )
         planner = (
-            (EdwardPlanner(level=active_level, fallback_mode=fallback_mode) if fallback_mode != "refuse"
-             else EdwardPlanner(level=active_level))
+            EdwardPlanner(level=active_level, fallback_mode=fallback_mode)
             if edward_options else None
         )
         active_option: PlannerCandidate | None = None

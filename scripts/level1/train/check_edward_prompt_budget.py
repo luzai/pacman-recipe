@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from pacman_env.planner import PlannerCandidate
+from pacman_env.planner import PlannerCandidate, resolve_fallback_mode
 
 from pacman_recipe.level1.prompts import (
     build_image_messages,
@@ -26,7 +26,7 @@ OBSERVATION_SHAPE = (400, 336, 3)
 
 
 def worst_case_messages(
-    tokenizer: object, *, fallback_mode: str = "refuse", risk_fallback: bool = False
+    tokenizer: object, *, fallback_mode: str = "risk_ranked", risk_fallback: bool = False
 ) -> tuple[list[dict], str]:
     candidates = tuple(
         PlannerCandidate(
@@ -92,7 +92,7 @@ def worst_case_messages(
 
 
 def measure(
-    processor: object, *, fallback_mode: str = "refuse", risk_fallback: bool = False
+    processor: object, *, fallback_mode: str = "risk_ranked", risk_fallback: bool = False
 ) -> dict[str, int]:
     tokenizer = getattr(processor, "tokenizer", processor)
     messages, user_prompt = worst_case_messages(
@@ -127,7 +127,7 @@ def main() -> None:
     parser.add_argument("--max-input-tokens", type=int, default=1024)
     mode_args = parser.add_mutually_exclusive_group()
     mode_args.add_argument("--config", type=Path)
-    mode_args.add_argument("--fallback-mode", choices=("refuse", "risk_ranked"), default="refuse")
+    mode_args.add_argument("--fallback-mode", choices=("refuse", "risk_ranked"), default="risk_ranked")
     args = parser.parse_args()
 
     from transformers import AutoProcessor
@@ -139,7 +139,7 @@ def main() -> None:
     if args.config is not None:
         import yaml
         raw = yaml.safe_load(args.config.read_text(encoding="utf-8"))
-        fallback_mode = raw.get("edward_fallback_mode", "refuse")
+        fallback_mode = resolve_fallback_mode(raw.get("edward_fallback_mode"))
     results = {"normal": measure(processor, fallback_mode=fallback_mode)}
     if fallback_mode == "risk_ranked":
         results["risk_fallback"] = measure(

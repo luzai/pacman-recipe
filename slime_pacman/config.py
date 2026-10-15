@@ -23,7 +23,7 @@ class PacmanConfig:
     learning_rate: float = 5e-7
     success_speed_bonus: float = 0.05
     success_life_bonus: float = 0.1
-    edward_fallback_mode: str = "refuse"
+    edward_fallback_mode: str | None = None
     observation_mode: str = "image"
     ascii_map_format: str = "packed"
     vision_image_contract: str = "qwen-min-pixels-537600"
@@ -32,6 +32,9 @@ class PacmanConfig:
     ghost_mode: str = "normal"
 
     def __post_init__(self):
+        from pacman_env.planner import resolve_fallback_mode
+        object.__setattr__(self, "edward_fallback_mode", resolve_fallback_mode(
+            self.edward_fallback_mode, edward_options=self.action_mode == "edward"))
         if self.action_mode not in ("edward", "primitive"):
             raise ValueError("unsupported action mode")
         if self.episode_life_mode not in ("single_death", "original_three_lives") or self.ghost_mode not in ("normal", "disabled"):

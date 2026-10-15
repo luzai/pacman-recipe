@@ -29,7 +29,10 @@ dynamic message layout, structured state, history and native trajectory audit.
 Primitive keeps the existing open-action mask U/D/L/R (no S). Edward keeps
 `EdwardPlanner`, authoritative candidate order and option-code map, commit
 length, safety checks after each step, continuation and replanning. Fallback
-defaults to native `refuse`; `--fallback risk_ranked` is explicit and fingerprinted.
+defaults to `risk_ranked` for Edward; `--fallback refuse` reproduces legacy handling.
+Primitive always uses `refuse`; the CLI fallback flag applies only to Edward.
+The archived 50-pair comparison below used explicit `refuse` and has not been rerun
+with the new default. Both modes retain their existing prompt renderers.
 The two modes deliberately retain different observation/action contracts.
 This is not a comparison isolating the effect of a prompt or model alone.
 

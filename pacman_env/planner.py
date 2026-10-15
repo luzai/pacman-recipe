@@ -40,6 +40,13 @@ def validate_fallback_mode(mode: str, *, edward_options: bool = True) -> str:
     return mode
 
 
+def resolve_fallback_mode(mode: str | None = None, *, edward_options: bool = True) -> str:
+    """Resolve new-run defaults; historical records must use explicit legacy modes."""
+    if mode is None:
+        mode = "risk_ranked" if edward_options else "refuse"
+    return validate_fallback_mode(mode, edward_options=edward_options)
+
+
 class EdwardSafetyRefusal(RuntimeError):
     """The planner cannot prove that any currently legal action is ghost-safe."""
 
@@ -785,9 +792,9 @@ class EdwardPlanner:
     """Stateful deterministic planner for one Level-1 episode."""
 
     def __init__(
-        self, level: LevelDefinition | None = None, *, fallback_mode: str = "refuse"
+        self, level: LevelDefinition | None = None, *, fallback_mode: str | None = None
     ) -> None:
-        self.fallback_mode = validate_fallback_mode(fallback_mode)
+        self.fallback_mode = resolve_fallback_mode(fallback_mode)
         self.level = level or load_bundled_level(1)
         self.reset()
 

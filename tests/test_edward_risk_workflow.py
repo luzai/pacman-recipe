@@ -129,8 +129,8 @@ def test_existing_option_codes_feed_native_ppo_support_ledger():
 
 def test_legacy_contract_unchanged_and_opt_in_fingerprinted():
     raw = {"edward_options": True, "image_prompt_style": "live_state_v3"}
-    legacy = recipe_contract_metadata(raw)
-    assert legacy == recipe_contract_metadata({**raw, "edward_fallback_mode": "refuse"})
+    legacy = recipe_contract_metadata({**raw, "edward_fallback_mode": "refuse"})
+    assert recipe_contract_metadata(raw) == recipe_contract_metadata({**raw, "edward_fallback_mode": "risk_ranked"})
     opted = recipe_contract_metadata({**raw, "edward_fallback_mode": "risk_ranked"})
     assert opted["harness"]["edward_fallback_mode"] == "risk_ranked"
     assert opted["prompt"]["template_sha256"] != legacy["prompt"]["template_sha256"]

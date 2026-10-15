@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 
 from pacman_env.env import PygamePacmanEnv, PygamePacmanEnvConfig
+from pacman_env.planner import resolve_fallback_mode
 from .prompts import prompt_contract_metadata
 
 EPISODE_SCHEMA = "pacman-episode-v1"
@@ -66,9 +67,11 @@ def repository_identity(path):
 
 def make_episode_record(
     seed, *, split, recipe_root, game_root, backend_root, backend="slime", max_steps=512,
-    observation_mode="image", edward_fallback_mode="refuse", ascii_map_format="packed",
+    observation_mode="image", edward_fallback_mode=None, ascii_map_format="packed",
     action_mode="edward", ghost_mode="normal", episode_life_mode="single_death"
 ):
+    edward_fallback_mode = resolve_fallback_mode(
+        edward_fallback_mode, edward_options=action_mode == "edward")
     if observation_mode not in {'image', 'ascii'}:
         raise ValueError('Unsupported observation mode')
     if ascii_map_format not in ("packed", "spaced") or (ascii_map_format == "spaced" and observation_mode != "ascii"):

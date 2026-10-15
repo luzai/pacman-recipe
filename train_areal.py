@@ -630,7 +630,7 @@ def _build_workflow_kwargs(
         legal_action_mask=config.legal_action_mask,
         open_action_mask=config.open_action_mask,
         edward_options=getattr(config, "edward_options", False),
-        edward_fallback_mode=getattr(config, "edward_fallback_mode", "refuse"),
+        edward_fallback_mode=getattr(config, "edward_fallback_mode", None),
         objective_encoding=getattr(config, "objective_encoding", "legacy"),
         reward_objective_contract=(
             getattr(config, "reward_objective_contract", "legacy")

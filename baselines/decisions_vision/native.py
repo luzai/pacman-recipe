@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
+from pacman_env.planner import resolve_fallback_mode
 from pacman_recipe.level1.episode import ModelTurn, PacmanEpisodeRunner
 from pacman_recipe.level1.level1_dataset import SUPPORTED_MAX_STEPS, make_episode_row, validate_episode_row
 from pacman_recipe.level1.prompts import prompt_contract_metadata
@@ -63,7 +64,8 @@ def native_payload(messages, choices):
         "choices": [{"value": code, "description": code} for code in choices]}]}
 
 
-def runner_options(mode, fallback="refuse"):
+def runner_options(mode, fallback=None):
+    fallback = resolve_fallback_mode(fallback, edward_options=mode == "edward")
     if mode not in ("primitive", "edward"):
         raise ValueError("Unknown mode")
     return dict(edward_options=mode == "edward", open_action_mask=mode == "primitive",
@@ -97,7 +99,7 @@ def validate_eval_row(row):
 
 class NativeDecisionRunner(PacmanEpisodeRunner):
     def __init__(self, *, mode, key=None, live=False, output=None, sender=send_body,
-                 fallback="refuse", **kwargs):
+                 fallback=None, **kwargs):
         super().__init__(tokenizer=SymbolCodec(), **runner_options(mode, fallback), **kwargs)
         self.key = key
         self.live = live
@@ -182,7 +184,8 @@ def metrics(runner, mode, seed, *, single_step=False):
         "input_tokens": sum(d.get("usage", {}).get("input_tokens", 0) for d in live)}
 
 
-async def run_one(mode, seed, max_steps, single_step, live, key, output, fallback="refuse"):
+async def run_one(mode, seed, max_steps, single_step, live, key, output, fallback=None):
+    fallback = resolve_fallback_mode(fallback, edward_options=mode == "edward")
     output.mkdir(parents=True, exist_ok=False)
     row = make_episode_row(1, split="test", seed=seed, max_steps=max_steps)
     if single_step:
@@ -241,7 +244,7 @@ def main():
     parser.add_argument("--max-steps", type=int, choices=sorted(SUPPORTED_MAX_STEPS), default=32)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--episodes", type=int, default=1)
-    parser.add_argument("--fallback", choices=("refuse", "risk_ranked"), default="refuse")
+    parser.add_argument("--fallback", choices=("refuse", "risk_ranked"), default=None, help="Edward fallback (default: risk_ranked); primitive stays refuse")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.episodes <= 0:
@@ -256,7 +259,7 @@ def main():
             for mode in modes:
                 result = await run_one(mode, args.seed + offset, args.max_steps,
                     args.single_step, args.live, key,
-                    output / f"{mode}_seed{args.seed + offset}", args.fallback)
+                    output / f"{mode}_seed{args.seed + offset}", args.fallback if mode == "edward" else "refuse")
                 results.append(result)
                 write_comparison(output, results)
                 print(json.dumps(result), flush=True)

@@ -59,8 +59,9 @@ Radix Cache 的收益需实测；RL 权重更新必须使旧 KV cache 失效。
 
 固定 revision 的 AReaL fork 提供分布式调度、vLLM rollout、FSDP actor/reference engine 和 checkpoint 管理。环境已内置在本仓库，无需独立的 Pacman checkout。
 
-C2 可显式启用[单步风险回退](docs/edward-risk-fallback.md)：正常 options 全部为空时，
-展示所有开放方向及风险提示，让模型选择一步后重新规划。默认仍保留原有行为。
+新 Edward 运行默认启用[单步风险回退](docs/edward-risk-fallback.md)：正常 options 全部为空时，
+展示所有开放方向及风险提示，让模型选择一步后重新规划。显式 `edward_fallback_mode: refuse`
+可复现旧行为；primitive 默认不变。新运行需重新生成匹配的数据合约。
 
 Simulator 支持 [JSON save-state / restore](docs/simulator-save-state.md)：在
 `reset/step` 边界保存完整游戏、RNG、渲染和 episode 计数，可在新 worker 中继续。

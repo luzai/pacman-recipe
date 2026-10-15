@@ -28,8 +28,8 @@ def test_normal_options_take_priority_and_keep_legacy_serialization():
     assert normal and all("risk" not in candidate.as_dict() for candidate in normal)
 
 
-def test_legacy_emergency_and_refusal_remain_default():
-    legacy = EdwardPlanner(corridor())
+def test_explicit_legacy_emergency_and_refusal_remain_available():
+    legacy = EdwardPlanner(corridor(), fallback_mode="refuse")
     candidates = legacy.advertised_candidates(state(pacman_position=[1, 2]))
     assert len(candidates) == 1 and candidates[0].strategy == "AVOID"
     with pytest.raises(EdwardSafetyRefusal):

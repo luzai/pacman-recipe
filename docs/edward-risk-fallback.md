@@ -1,6 +1,6 @@
 # Edward 单步风险回退
 
-新实验可在 C2 配置中显式设置：
+新 Edward 运行默认使用 `risk_ranked`，也可在 C2 配置中显式设置：
 
 ```yaml
 edward_options: true
@@ -38,8 +38,11 @@ safe_next_cells 只表示相邻格子的距离检查结果，不保证存在独�
 
 ## 兼容性与训练
 
-- 默认 `edward_fallback_mode: refuse` 保留旧 emergency/refusal 行为。
-- 默认模式的候选序列化、prompt 文本和 template 指纹保持不变。
+- 新 Edward planner、native runner、AReaL/slime 配置及数据合约默认 `risk_ranked`；primitive 仍使用 `refuse`。
+- 显式 `edward_fallback_mode: refuse`（baseline CLI 为 `--fallback refuse`）保留旧 emergency/refusal 行为。
+- 显式 `refuse` 的候选序列化、prompt 文本和 template 指纹保持不变。
+- 旧轨迹/合约缺少 fallback 字段时仍按 `refuse` 解读；新运行明确记录 `risk_ranked`。
+  底层冻结的 prompt renderer 保留 legacy 默认参数，生产入口显式传入解析后的模式。
 - 新模式在 recipe harness、prompt 指纹、trajectory decoding 和 observation
   context 中留下证据；轨迹审计检查方向完整性、风险字段、单步结束及实际执行。
 - 单 token 支持集合、rollout logprob 和 PPO support ledger 使用原有链路。

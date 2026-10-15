@@ -10,6 +10,7 @@ from typing import Any, Mapping
 import yaml
 
 from pacman_env.env.ghost_modes import validate_ghost_mode
+from pacman_env.planner import resolve_fallback_mode
 from .vision_prompt import VISION_LAYOUT_VERSION
 
 
@@ -67,7 +68,7 @@ def prompt_contract(raw: Mapping[str, Any]) -> dict[str, Any]:
     edward_options = bool(raw.get("edward_options", False))
     actual = prompt_contract_metadata(
         prompt_style, edward_options=edward_options,
-        fallback_mode=raw.get("edward_fallback_mode", "refuse"),
+        fallback_mode=resolve_fallback_mode(raw.get("edward_fallback_mode"), edward_options=edward_options),
     )
     version = str(raw.get("prompt_version", "legacy"))
     if version != "legacy" and version != actual["prompt_version"]:
@@ -84,6 +85,8 @@ def prompt_contract(raw: Mapping[str, Any]) -> dict[str, Any]:
 def recipe_contract_metadata(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Build JSON-safe, stage-specific provenance for data/run manifests."""
 
+    fallback_mode = resolve_fallback_mode(
+        raw.get("edward_fallback_mode"), edward_options=bool(raw.get("edward_options", False)))
     environment = raw.get("environment") or {}
     generation = raw.get("dataset_generation") or {}
     actor = raw.get("actor") or {}
@@ -129,8 +132,8 @@ def recipe_contract_metadata(raw: Mapping[str, Any]) -> dict[str, Any]:
         "harness": {
             "action_protocol": raw.get("action_protocol", "legacy"),
             "edward_options": bool(raw.get("edward_options", False)),
-            **({"edward_fallback_mode": raw["edward_fallback_mode"]}
-               if raw.get("edward_fallback_mode", "refuse") != "refuse" else {}),
+            **({"edward_fallback_mode": fallback_mode}
+               if fallback_mode != "refuse" else {}),
             "action_token_choice": bool(raw.get("action_token_choice", False)),
             "open_action_mask": bool(raw.get("open_action_mask", False)),
             "objective_encoding": raw.get("objective_encoding", "legacy"),
