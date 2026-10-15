@@ -92,7 +92,9 @@ def main():
             config["catalog"],
             TrainingPolicy(**config["policy"]),
             max_tier=config["max_tier"],
+            min_tier=config.get("min_tier", 1),
             seed=config["seed"],
+            environment_seed_mode=config.get("environment_seed_mode", "group_randomized"),
         )
         checkpoint = Path(command[command.index("--load") + 1])
         receipt = restore(checkpoint, identity=sampler.controller.identity)

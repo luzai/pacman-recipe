@@ -24,6 +24,27 @@ included in this recipe commit.
 
 ## Planner terminal collection
 
+### GRPO environment seed diversity
+
+The formal training sampler defaults to `environment_seed_mode: group_randomized`
+in `PACMAN_FORMAL_CONFIG`. Each group keeps one frozen layout and one environment
+(ghost) seed for all 12 replicas; model sampling seeds differ per replica.
+Environment seeds are derived deterministically from the run seed, optimizer
+update, group and catalog task ID, with collisions rejected within a batch.
+This applies to current-tier and earlier-tier review groups. The frozen plan
+records `environment_seed`; its task `game_seed` and episode environment seed
+match. Task IDs remain catalog identifiers, not the executed environment seed.
+The source catalog, validation layouts, environment seeds and paired model
+sampling schedule are unchanged. Retrying/restoring the same sampler state
+recreates the same next plan without consuming global RNG state.
+
+`fixed_catalog` explicitly preserves the historical environment-seed behavior
+and controller identity. The new randomized mode has a different checkpoint
+identity, so legacy controller snapshots cannot silently resume under changed
+training conditions. Switching an old run requires an explicit new-stage
+controller migration and deployment/source acceptance; this code change does
+not migrate, launch or modify any frozen experiment.
+
 The last normal pellet ends the episode. COLLECT still requires safe arrival,
 but does not require an escape or return after that terminal move. Power pellets
 and nonterminal targets retain the existing checks. Option continuation uses

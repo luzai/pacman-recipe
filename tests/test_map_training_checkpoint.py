@@ -8,7 +8,7 @@ from slime_pacman.map_training.controller import TrainingPolicy
 def sampler():
     rows = [dict(task_id=f'{tier}-{i}', split='train', tier=tier,
                  layout_sha256=f'{tier * 16 + i:064x}') for tier in range(2) for i in range(16)]
-    return FormalSampler(rows, TrainingPolicy(.8, 3, 384, 2, 8), max_tier=1)
+    return FormalSampler(rows, TrainingPolicy(.8, 3, 384, 2, 8), max_tier=1, min_tier=0)
 
 
 def episodes(plan, won=True):

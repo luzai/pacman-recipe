@@ -25,13 +25,19 @@ class TrainingPolicy:
 
 
 class TrainingWinController:
-    def __init__(self, policy, *, catalog_identity, max_tier):
+    def __init__(self, policy, *, catalog_identity, max_tier, min_tier=0):
         if type(max_tier) is not int or max_tier < 0:
             raise ValueError("invalid max tier")
+        if type(min_tier) is not int or not 0 <= min_tier <= max_tier:
+            raise ValueError("invalid min tier")
+        self.min_tier = min_tier
         self.policy, self.max_tier = policy, max_tier
-        self.identity = digest([asdict(policy), catalog_identity, max_tier,
-                                "training-win-controller-v2"])
-        self.state = dict(tier=0, bank_version=0, last_update=-1, streak=0,
+        identity_parts = [asdict(policy), catalog_identity, max_tier,
+                          "training-win-controller-v2"]
+        if min_tier:
+            identity_parts += ['min-tier-v1', min_tier]
+        self.identity = digest(identity_parts)
+        self.state = dict(tier=min_tier, bank_version=0, last_update=-1, streak=0,
                           window=[], events=[])
 
     def commit(self, *, update, plan, episodes, optimizer_completed):
@@ -52,7 +58,7 @@ class TrainingWinController:
             task = g['task']
             sha = task.get('layout_sha256', '')
             if (g['group'] in groups or g['start'] != 'initial'
-                    or task['split'] != 'train' or not 0 <= task['tier'] <= s['tier']
+                    or task['split'] != 'train' or not self.min_tier <= task['tier'] <= s['tier']
                     or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha)
                     or len(g['sampling_seeds']) != 12
                     or len(set(g['sampling_seeds'])) != 12):
@@ -103,6 +109,7 @@ class TrainingWinController:
 
     def restore(self, payload, *, completed_update, bank_version):
         if (payload['identity'] != self.identity
+                or not self.min_tier <= payload['state']['tier'] <= self.max_tier
                 or payload['state']['last_update'] != completed_update
                 or payload['state']['bank_version'] != bank_version):
             raise ValueError("checkpoint/controller mismatch")

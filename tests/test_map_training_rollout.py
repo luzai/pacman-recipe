@@ -27,6 +27,7 @@ def runtime(tmp_path, monkeypatch):
                 catalog=catalog(),
                 seed=20261009,
                 max_tier=0,
+                min_tier=0,
                 policy=dict(
                     threshold=0.8,
                     window_batches=3,

@@ -73,7 +73,9 @@ class Runtime:
             self.catalog,
             TrainingPolicy(**config["policy"]),
             max_tier=config["max_tier"],
+            min_tier=config.get("min_tier", 1),
             seed=config["seed"],
+            environment_seed_mode=config.get("environment_seed_mode", "group_randomized"),
         )
         self.root = Path(os.environ["PACMAN_RUN_DIR"])
         self.identity = self.sampler.controller.identity
@@ -262,7 +264,8 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
     runtime = get_runtime(args)
     if evaluation:
         rows = sorted(
-            (r for r in runtime.catalog if r["split"] == "validation"),
+            (r for r in runtime.catalog if r["split"] == "validation"
+             and runtime.sampler.min_tier <= r["tier"] <= runtime.sampler.controller.max_tier),
             key=lambda r: r["task_id"],
         )
         if not rows:
