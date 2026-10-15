@@ -23,7 +23,7 @@ from pacman_recipe.level1.episode import ModelTurn, PacmanEpisodeRunner
 from pacman_recipe.level1.trajectories import TrajectoryAuditError
 from .config import load_config, runner_options
 from .generation import SGLangGenerator
-from .grouping import binary_reward, success_speed_reward
+from .grouping import binary_reward, success_reward
 
 
 @dataclass
@@ -35,6 +35,7 @@ class EpisodeResult:
     terminal_reason: str
     success_speed_bonus: float = 0.0
     environment_steps: int = 0
+    success_life_bonus: float = 0.0
 
 
 class EpisodeRunner(PacmanEpisodeRunner):
@@ -57,6 +58,7 @@ class EpisodeRunner(PacmanEpisodeRunner):
             raise ValueError("episode prompt/life/ghost contract differs from runner configuration")
         self.record = record
         self.success_speed_bonus = config.success_speed_bonus
+        self.success_life_bonus = config.success_life_bonus
         self.decisions = []
         self.generate = generate
         expected_row = runner_row(record)
@@ -101,6 +103,7 @@ class EpisodeRunner(PacmanEpisodeRunner):
             return EpisodeResult(
                 0.0, [], str(empty_weight_version), None, "initial_safety_refusal",
                 self.success_speed_bonus,
+                success_life_bonus=self.success_life_bonus,
             )
         reward = binary_reward(self.last_episode)
         if abs(self.last_episode["total_shaped_reward"] - reward) > 1e-6:
@@ -108,13 +111,15 @@ class EpisodeRunner(PacmanEpisodeRunner):
         trajectory = neutral_trajectory(self.last_episode)
         audit_neutral_trajectory(trajectory)
         return EpisodeResult(
-            success_speed_reward(self.last_episode, self.success_speed_bonus),
+            success_reward(self.last_episode, success_speed_bonus=self.success_speed_bonus,
+                           success_life_bonus=self.success_life_bonus),
             self.decisions,
             self.decisions[0].weight_version,
             trajectory,
             self.last_episode["terminal_reason"],
             self.success_speed_bonus,
             self.last_episode["steps"],
+            self.success_life_bonus,
         )
 
 
@@ -154,6 +159,7 @@ def samples_from_episode(parent, episode, tokenizer):
             sample.multimodal_train_inputs = decision.multimodal_train_inputs
         sample.train_metadata = dict(
             success_speed_bonus=episode.success_speed_bonus,
+            success_life_bonus=episode.success_life_bonus,
             won=episode.terminal_reason == "all_normal_pellets",
             environment_steps=episode.environment_steps,
             group_id=parent.group_index,
@@ -474,6 +480,7 @@ async def generate_episode(args, sample, sampling_params, evaluation=False):
                 "reward": episode.reward,
                 "won": episode.terminal_reason == "all_normal_pellets",
                 "success_speed_bonus": episode.success_speed_bonus,
+                "success_life_bonus": episode.success_life_bonus,
                 "environment_steps": episode.environment_steps,
                 "weight_version": episode.weight_version,
                 "terminal_reason": episode.terminal_reason,

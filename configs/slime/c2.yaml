@@ -11,3 +11,5 @@ validation_seed_start: 68
 validation_seed_count: 4
 updates: 50
 learning_rate: 5.0e-7
+success_life_bonus: 0.1
+success_speed_bonus: 0.05

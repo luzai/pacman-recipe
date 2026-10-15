@@ -11,6 +11,10 @@ adapter 与 CPU 验收已实现，真实 GPU 训练尚未验收。详见
 `edward-option-code-v1`。旧 prompt 数据不能直接用于新训练：请重新准备数据并
 验证 manifest，不要修改历史文件的哈希来绕过检查。
 
+后续新 slime 训练默认使用 `success_life_bonus: 0.1` 和
+`success_speed_bonus: 0.05`；奖励公式、4 条命的计数和显式关闭方式见
+[success reward](docs/slime-success-reward.md)。部署时应生成新的运行身份。
+
 当前 primitive (`live_state_v3`) 与 options prompt 共用 `SHARED_GAME_RULES`：
 最新截图、结构化状态优先、幽灵与通行规则、过关条件及首次死亡即结束本局的规则。
 两套 prompt 均说明每次移动通常消耗 16 个游戏逻辑 ticks；判断可食用时间时应留余量，

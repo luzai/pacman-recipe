@@ -226,6 +226,8 @@ async def collect(args, task, sample, update, group, replica, seed, evaluation):
         replica=replica,
         frozen_seed=seed,
         reward=episode.reward,
+        success_speed_bonus=episode.success_speed_bonus,
+        success_life_bonus=episode.success_life_bonus,
         won=won,
         weight_version=episode.weight_version,
         environment_steps=episode.environment_steps,

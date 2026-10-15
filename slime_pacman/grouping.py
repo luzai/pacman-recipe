@@ -31,26 +31,46 @@ def binary_reward(payload):
     return float(won)
 
 
-def success_speed_reward(payload, coefficient=0.0):
-    """Terminal success-only bonus; steps are environment actions after restore."""
+def success_reward(payload, *, success_speed_bonus=0.0, success_life_bonus=0.0):
+    """Completion plus optional survival/speed bonuses, normalized to start budget."""
     won = binary_reward(payload)
-    if not math.isfinite(coefficient) or not 0 <= coefficient <= 0.1:
-        raise ValueError("invalid success speed coefficient")
-    if not coefficient or not won:
+    for coefficient in (success_speed_bonus, success_life_bonus):
+        if not math.isfinite(coefficient) or not 0 <= coefficient <= 0.1:
+            raise ValueError("invalid success bonus coefficient")
+    if not won:
         return won
     restart = payload.get("restart_state")
-    horizon = restart["remaining_budget"] if restart else payload["max_steps"]
-    steps = payload["steps"]
-    if type(horizon) is not int or horizon <= 0 or type(steps) is not int or not 0 <= steps <= horizon:
-        raise ValueError("invalid remaining horizon or executed steps")
-    return 1.0 + coefficient * (1.0 - steps / horizon)
+    reward = won
+    if success_life_bonus:
+        total_lives = 4 if payload["episode_life_mode"] == "original_three_lives" else 1
+        prior_deaths = restart["death_count"] if restart else 0
+        deaths = payload["death_count"]
+        if (type(prior_deaths) is not int or type(deaths) is not int
+                or not 0 <= prior_deaths <= deaths < total_lives):
+            raise ValueError("invalid successful episode death budget")
+        spare_lives = total_lives - prior_deaths - 1
+        if spare_lives:
+            reward += success_life_bonus * (1.0 - (deaths - prior_deaths) / spare_lives)
+    if success_speed_bonus:
+        horizon = restart["remaining_budget"] if restart else payload["max_steps"]
+        steps = payload["steps"]
+        if type(horizon) is not int or horizon <= 0 or type(steps) is not int or not 0 <= steps <= horizon:
+            raise ValueError("invalid remaining horizon or executed steps")
+        reward += success_speed_bonus * (1.0 - steps / horizon)
+    return reward
 
 
-def group_advantages(rewards, *, success_speed_bonus=0.0, zero_binary_extremes=False):
-    if not math.isfinite(success_speed_bonus) or not 0 <= success_speed_bonus <= 0.1:
-        raise ValueError("invalid success speed coefficient")
+def success_speed_reward(payload, coefficient=0.0):
+    """Backward-compatible speed-only reward."""
+    return success_reward(payload, success_speed_bonus=coefficient)
+
+
+def group_advantages(rewards, *, success_speed_bonus=0.0, success_life_bonus=0.0, zero_binary_extremes=False):
+    for coefficient in (success_speed_bonus, success_life_bonus):
+        if not math.isfinite(coefficient) or not 0 <= coefficient <= 0.1:
+            raise ValueError("invalid success bonus coefficient")
     if len(rewards) != 12 or any(
-        not math.isfinite(r) or not (r == 0.0 or 1.0 <= r <= 1.0 + success_speed_bonus) for r in rewards
+        not math.isfinite(r) or not (r == 0.0 or 1.0 <= r <= 1.0 + success_speed_bonus + success_life_bonus) for r in rewards
     ):
         raise ValueError("expected 12 episode rewards within the declared success bonus range")
     if type(zero_binary_extremes) is not bool:
@@ -85,6 +105,7 @@ def post_process_rewards(args, samples):
             {
                 "reward": sample.reward,
                 "success_speed_bonus": meta.get("success_speed_bonus", 0.0),
+                "success_life_bonus": meta.get("success_life_bonus", 0.0),
                 "sampling_contract": meta.get("sampling_contract"),
                 "steps": [],
                 "count": meta["decision_count"],
@@ -104,17 +125,18 @@ def post_process_rewards(args, samples):
             meta["initial_state_id"],
         ):
             raise ValueError("inconsistent episode metadata")
-        if episode["success_speed_bonus"] != meta.get("success_speed_bonus", 0.0):
+        if (episode["success_speed_bonus"] != meta.get("success_speed_bonus", 0.0)
+                or episode["success_life_bonus"] != meta.get("success_life_bonus", 0.0)):
             raise ValueError("inconsistent episode reward configuration")
         if episode["sampling_contract"] != meta.get("sampling_contract"):
             raise ValueError("inconsistent episode sampling contract")
         episode["steps"].append(meta["decision_index"])
     advantages = {}
     all_versions = set()
-    coefficients = {e["success_speed_bonus"] for group in groups.values() for e in group.values()}
+    coefficients = {(e["success_speed_bonus"], e["success_life_bonus"]) for group in groups.values() for e in group.values()}
     if len(coefficients) != 1:
         raise ValueError("rollout batch mixes reward configurations")
-    coefficient = next(iter(coefficients))
+    coefficient, life_coefficient = next(iter(coefficients))
     contracts = {e["sampling_contract"] for group in groups.values() for e in group.values()}
     if len(contracts) != 1 or not contracts <= {None, "ascii-diverse-first192-v1", "ascii-diverse-first192-v2"}:
         raise ValueError("rollout batch mixes or has unknown sampling contracts")
@@ -139,6 +161,7 @@ def post_process_rewards(args, samples):
             zip(
                 episodes,
                 group_advantages([e["reward"] for e in episodes.values()], success_speed_bonus=coefficient,
+                                 success_life_bonus=life_coefficient,
                                  zero_binary_extremes=zero_extremes),
                 strict=True,
             )

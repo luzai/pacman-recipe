@@ -21,7 +21,8 @@ class PacmanConfig:
     validation_seed_count: int = 4
     updates: int = 50
     learning_rate: float = 5e-7
-    success_speed_bonus: float = 0.0
+    success_speed_bonus: float = 0.05
+    success_life_bonus: float = 0.1
     edward_fallback_mode: str = "refuse"
     observation_mode: str = "image"
     ascii_map_format: str = "packed"
@@ -51,6 +52,8 @@ class PacmanConfig:
             raise ValueError("unsupported Edward fallback mode")
         if not math.isfinite(self.success_speed_bonus) or not 0 <= self.success_speed_bonus <= 0.1:
             raise ValueError("success_speed_bonus must be finite and between 0 and 0.1")
+        if not math.isfinite(self.success_life_bonus) or not 0 <= self.success_life_bonus <= 0.1:
+            raise ValueError("success_life_bonus must be finite and between 0 and 0.1")
         expected_groups, expected_clip = (16, 0.05) if self.observation_mode == 'ascii' else (4, 0.2)
         if self.group_size != 12 or self.groups_per_update != expected_groups:
             raise ValueError("Declared observation mode requires its fixed group count")

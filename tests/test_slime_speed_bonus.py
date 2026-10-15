@@ -80,6 +80,7 @@ def test_runner_applies_bonus_after_binary_environment_audit(monkeypatch):
     runner = object.__new__(rollout.EpisodeRunner)
     runner.record = {}
     runner.success_speed_bonus = .05
+    runner.success_life_bonus = 0.0
     runner.decisions = [SimpleNamespace(weight_version="v1")]
     runner.last_episode = payload
     async def run(row):
