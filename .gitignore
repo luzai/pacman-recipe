@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .coverage
 .env
+baselines/decisions_vision/api_key.local.txt
 .venv/
 .codex-tmp/
 build/

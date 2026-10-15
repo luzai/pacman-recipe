@@ -1,5 +1,9 @@
 # Pacman Recipe
 
+独立 OpenAI Decisions API baseline 支持复用 native primitive 与 Edward prompt/harness，
+入口和评测边界见 [baseline 文档](baselines/decisions_vision/README.md)。默认离线，
+live 需要显式启用；密钥与结果仅保存在本地忽略目录。
+
 项目目录和 GitHub 仓库统一命名为 `pacman-recipe`。公共配方包为
 `pacman_recipe`，环境包为 `pacman_env`；旧的 `areal_pacman` / `maapacman`
 imports 和模块入口作为兼容层保留。AReaL 训练路径保留；slime 的独立视觉
