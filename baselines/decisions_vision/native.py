@@ -64,12 +64,16 @@ def native_payload(messages, choices):
         "choices": [{"value": code, "description": code} for code in choices]}]}
 
 
-def runner_options(mode, fallback=None):
+def runner_options(mode, fallback=None, observation="image"):
     fallback = resolve_fallback_mode(fallback, edward_options=mode == "edward")
     if mode not in ("primitive", "edward"):
         raise ValueError("Unknown mode")
+    if observation not in ("image", "ascii"):
+        raise ValueError("Unknown observation mode")
+    style = ("live_state_v3" if observation == "image" else
+             "ascii_primitive_spaced_v1" if mode == "primitive" else "ascii_edward_spaced_v1")
     return dict(edward_options=mode == "edward", open_action_mask=mode == "primitive",
-        image_prompt_style="live_state_v3", edward_fallback_mode=fallback,
+        image_prompt_style=style, edward_fallback_mode=fallback,
         episode_life_mode="single_death", enable_thinking=False,
         model=MODEL, temperature=0.0, max_completion_tokens=1,
         use_base_reward=False, normal_pellet_reward=0.0, power_pellet_reward=0.0,
@@ -99,8 +103,8 @@ def validate_eval_row(row):
 
 class NativeDecisionRunner(PacmanEpisodeRunner):
     def __init__(self, *, mode, key=None, live=False, output=None, sender=send_body,
-                 fallback=None, **kwargs):
-        super().__init__(tokenizer=SymbolCodec(), **runner_options(mode, fallback), **kwargs)
+                 fallback=None, observation="image", **kwargs):
+        super().__init__(tokenizer=SymbolCodec(), **runner_options(mode, fallback, observation), **kwargs)
         self.key = key
         self.live = live
         self.output = Path(output) if output is not None else None
@@ -184,7 +188,7 @@ def metrics(runner, mode, seed, *, single_step=False):
         "input_tokens": sum(d.get("usage", {}).get("input_tokens", 0) for d in live)}
 
 
-async def run_one(mode, seed, max_steps, single_step, live, key, output, fallback=None):
+async def run_one(mode, seed, max_steps, single_step, live, key, output, fallback=None, *, observation="image"):
     fallback = resolve_fallback_mode(fallback, edward_options=mode == "edward")
     output.mkdir(parents=True, exist_ok=False)
     row = make_episode_row(1, split="test", seed=seed, max_steps=max_steps)
@@ -192,16 +196,17 @@ async def run_one(mode, seed, max_steps, single_step, live, key, output, fallbac
         row["decision_steps"] = 1
         row["baseline_smoke_only"] = True
     runner = NativeDecisionRunner(mode=mode, key=key, live=live, output=output, fallback=fallback,
+                                 observation=observation,
                                  row_validator=validate_eval_row)
-    manifest = {"mode": mode, "row": row, "live": live,
-        "prompt": prompt_contract_metadata("live_state_v3", edward_options=mode == "edward", fallback_mode=fallback),
+    manifest = {"mode": mode, "observation": observation, "row": row, "live": live,
+        "prompt": prompt_contract_metadata(runner.workflow_kwargs["image_prompt_style"], edward_options=mode == "edward", fallback_mode=fallback),
         "runner": "pacman_recipe.level1.episode.PacmanEpisodeRunner (unmodified)",
         "options": runner.workflow_kwargs, "max_api_calls": 1 if single_step else max_steps,
         "row_validation": "full native production validation; smoke-only cap separately validated without fictitious teacher-prefix evidence",
         "differences": ["Decisions choice over native output codes instead of token generation",
             "SymbolCodec is a local code mapper, not the OpenAI/Qwen tokenizer",
             "One supported code is forced locally, with zero API calls",
-            "OpenAI controls image encoding and sampling; Qwen processor/temperature parity is not claimed",
+            "OpenAI controls tokenization and sampling; Qwen processor/temperature parity is not claimed",
             "API renders system messages as developer messages; original role/text is retained in request",
             "Offline choices are fixtures, never performance results"]}
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -239,6 +244,8 @@ def write_comparison(output, results):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("primitive", "edward", "both"), default="both")
+    parser.add_argument("--observation", choices=("image", "ascii"), default="image",
+                        help="ASCII uses the existing spaced-map agent prompts and sends no images")
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--single-step", action="store_true")
     parser.add_argument("--max-steps", type=int, choices=sorted(SUPPORTED_MAX_STEPS), default=32)
@@ -259,7 +266,8 @@ def main():
             for mode in modes:
                 result = await run_one(mode, args.seed + offset, args.max_steps,
                     args.single_step, args.live, key,
-                    output / f"{mode}_seed{args.seed + offset}", args.fallback if mode == "edward" else "refuse")
+                    output / f"{mode}_seed{args.seed + offset}", args.fallback if mode == "edward" else "refuse",
+                    observation=args.observation)
                 results.append(result)
                 write_comparison(output, results)
                 print(json.dumps(result), flush=True)

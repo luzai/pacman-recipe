@@ -18,6 +18,10 @@ python -m baselines.decisions_vision.native --live --mode both --single-step
 python -m baselines.decisions_vision.native --live --mode both --max-steps 32 --seed 0
 # More seeds, only when explicitly desired (up to 192 calls).
 python -m baselines.decisions_vision.native --live --mode both --max-steps 32 --episodes 3
+# Pure text: existing agent prompts, one space between maze cells, empty cell `_`.
+python -m baselines.decisions_vision.native --live --observation ascii --mode both --single-step
+# Fixed paired performance evaluation, no videos; eight seeds concurrently.
+python -m baselines.decisions_vision.batch --live --observation ascii --episodes 50 --max-steps 512 --workers 8 --output artifacts/decisions_vision/ascii512_no_fruit50
 ```
 
 ## Native modes (main comparison)
@@ -26,6 +30,13 @@ python -m baselines.decisions_vision.native --live --mode both --max-steps 32 --
 `_call_model`. It does not copy or change the episode loop. Both modes use
 the existing `live_state_v3` visual prompts, `vision_model_image`, fixed/image/
 dynamic message layout, structured state, history and native trajectory audit.
+With `--observation ascii`, the same runner selects the existing
+`ascii_primitive_spaced_v1` and `ascii_edward_spaced_v1` agent prompts. Text,
+roles, history, candidate ordering and whitespace are preserved; no image
+content is sent. Empty cells are `_`, and cells/column indices are separated
+by single spaces. Spaced maps round-trip exactly to the existing packed map.
+The full structured state remains part of each native prompt, so this is not
+a map-only ablation. Renderer source and prompt fingerprints are unchanged.
 Primitive keeps the existing open-action mask U/D/L/R (no S). Edward keeps
 `EdwardPlanner`, authoritative candidate order and option-code map, commit
 length, safety checks after each step, continuation and replanning. Fallback
@@ -74,7 +85,43 @@ replanning, singleton support, malformed results, refusals, HTTP failure,
 no retries, redirects and credential input. Full-suite collection currently
 requires the unavailable local `areal` dependency.
 
-## No-fruit 50-pair evaluation (2026-10-15)
+## Spaced ASCII 50-pair evaluation (2026-10-15)
+
+Pure text requests using the existing spaced-map primitive/Edward prompts,
+seeds 0–49, 512 game steps, normal ghosts, single death, fruit disabled,
+eight concurrent seeds and alternating mode order. Edward uses `risk_ranked`.
+No prompt renderer, planner, navigation or episode-loop source was changed.
+
+| Mode | Clears / attempts | Complete episodes | Mean score (complete) | Mean steps | Normal pellet completion | API latency mean / p50 / p95 / p99 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Primitive | 0/50 | 50 | 242.6 | 17.34 | 6.07% | 0.294 / 0.226 / 0.657 / 1.152 s |
+| Edward | 14/50 | 49 | 5571.0 | 285.67 | 73.64% | 0.294 / 0.222 / 0.699 / 1.209 s |
+
+Edward seed 45 stopped on API model refusal, without a substitute action or
+retry. It counts as non-clear in the prespecified operational endpoint;
+its missing complete-episode score is excluded. This API refusal is separate
+from planner fallback. Edward's complete episodes ended with 14 clears,
+30 deaths and five step-budget cutoffs; primitive's 50 ended on death.
+Paired exact McNemar p=0.0001220703125, also for the 49 complete pairs.
+Win-rate difference is 28 percentage points (paired bootstrap 95% CI 16–40).
+Mean paired score difference over 49 complete pairs is 5324.5
+(95% bootstrap CI 4351.0–6325.9; 20,000 resamples).
+
+Latency pools 867 primitive and 9972 Edward successful API requests, including
+those before refusal; 170 Edward singleton choices and the refused request
+are excluded. It includes client/network work under concurrent load.
+These fixed-layout results do not establish unseen-map generalization.
+The earlier image Edward group used `refuse`, so cross-run differences
+cannot be attributed only to image versus ASCII.
+
+Exact prompts, text-only bodies, canonical spaced maps, source hashes,
+decision records, audited trajectories and the per-seed table are local:
+`artifacts/decisions_vision/ascii512_no_fruit50_20261015_v1/comparison.md`.
+No MP4s were generated. Two separate live single-step checks passed before
+the batch and are excluded from its statistics. Focused CPU checks passed
+43 tests; full-suite collection remains blocked by missing `areal` locally.
+
+## Historical image no-fruit 50-pair evaluation (2026-10-15)
 
 Fixed seeds 0–49, both modes, at most 512 game steps, normal ghosts, single death,
 and `PACMAN_DISABLE_FRUIT=1`; eight seeds ran concurrently. Prompts, supports,

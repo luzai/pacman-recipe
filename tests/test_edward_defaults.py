@@ -50,7 +50,7 @@ def test_baseline_cli_resolves_both_modes(tmp_path, monkeypatch, flag, expected)
     monkeypatch.setattr(sys, "argv", args)
     calls = []
 
-    async def run(mode, seed, max_steps, single_step, live, key, output, fallback):
+    async def run(mode, seed, max_steps, single_step, live, key, output, fallback, **kwargs):
         calls.append((mode, resolve_fallback_mode(fallback, edward_options=mode == "edward")))
         return dict(mode=mode, status="complete")
 

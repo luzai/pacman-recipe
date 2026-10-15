@@ -84,8 +84,9 @@ def test_smoke_row_keeps_production_validation():
 
 @pytest.mark.parametrize("mode", ["primitive", "edward"])
 @pytest.mark.parametrize("single_step", [True, False])
-def test_native_prompt_and_step_match_reference_runner(mode, single_step, tmp_path):
-    adapter = NativeDecisionRunner(mode=mode, output=tmp_path, row_validator=validate_eval_row)
+@pytest.mark.parametrize("observation", ["image", "ascii"])
+def test_native_prompt_and_step_match_reference_runner(mode, single_step, observation, tmp_path):
+    adapter = NativeDecisionRunner(mode=mode, observation=observation, output=tmp_path, row_validator=validate_eval_row)
     row = smoke_row() if single_step else make_episode_row(1, split="test", seed=0, max_steps=32)
     asyncio.run(adapter.run(row))
     reference_messages = []
@@ -102,12 +103,24 @@ def test_native_prompt_and_step_match_reference_runner(mode, single_step, tmp_pa
     for i, expected_messages in enumerate(reference_messages):
         actual_messages = json.loads((tmp_path / f"decision{i:04d}_native_messages.json").read_text())
         assert actual_messages == expected_messages
+        if observation == "ascii":
+            body = json.loads((tmp_path / f"decision{i:04d}_request.json").read_text())
+            assert all(p["type"] == "input_text" for m in body["input"] for p in m["content"])
     assert len(adapter.last_episode["trajectory"]) == len(reference.last_episode["trajectory"])
     for actual, expected in zip(adapter.last_episode["trajectory"], reference.last_episode["trajectory"]):
         for field in ("action", "score", "observation_context", "option_code_map",
                       "model_user_instruction", "option_id", "option_status", "wall_collision"):
             assert actual[field] == expected[field], field
     audit_trajectory(adapter.last_episode)
+    if observation == "ascii":
+        from pacman_recipe.level1.ascii_observation_spaced import unspace_ascii_map, space_ascii_map
+        assert not list(tmp_path.glob("*.png"))
+        for step in adapter.last_episode["trajectory"]:
+            maze = step["observation_ascii_map"]
+            assert space_ascii_map(unspace_ascii_map(maze)) == maze
+            assert step["observation_mode"] == "ascii"
+            if step["model_called"]:
+                assert maze in step["model_user_instruction"]
     assert metrics(adapter, mode, 0)["api_calls"] == 0
 
 
