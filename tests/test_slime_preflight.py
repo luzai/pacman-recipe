@@ -24,8 +24,11 @@ def test_model_preflight_result_is_json_serializable(tmp_path, monkeypatch):
     (tmp_path / "model-00001.safetensors").write_bytes(b"fixture")
     processor = SimpleNamespace(image_processor=SimpleNamespace(size=UserDict({"height": 224, "width": 224})))
     monkeypatch.setattr(transformers.AutoProcessor, "from_pretrained", lambda *a, **k: processor)
+    # This fixture tests JSON conversion of UserDict, not image preprocessing.
+    monkeypatch.setattr("slime_pacman.preflight.check_image_contract", lambda _: [[1, 50, 42]])
     result = check_model(tmp_path)
-    assert json.loads(json.dumps(result))["image_size"] == {"height": 224, "width": 224}
+    size = json.loads(json.dumps(result))["image_size"]
+    assert size["height"] == size["width"] == 224
 
 
 def test_dataset_manifest_rejects_tampering_and_source_drift(tmp_path):
