@@ -25,6 +25,13 @@ adapter 与 CPU 验收已实现，真实 GPU 训练尚未验收。详见
 `success_speed_bonus: 0.05`；奖励公式、4 条命的计数和显式关闭方式见
 [success reward](docs/slime-success-reward.md)。部署时应生成新的运行身份。
 
+后续新 slime job 默认使用静态 `micro-batch-size=2`，以及
+`recompute-granularity=full / recompute-method=block / recompute-num-layers=24`
+（32层模型中的前24层重算，其余8层保留 activation）。继续使用 CPU optimizer
+offload 和 TP=PP=CP=1。用户已选择直接用于下一次训练，不再额外安排 GPU 复测；
+已运行 job 和旧 checkpoint 的源码／配置快照保持原样。证据与适用边界见
+[下一次训练 handoff](docs/slime-next-training-handoff.md)。
+
 后续 formal map curriculum 新 job 默认从 tier 1 开始，训练、replay 及验证均排除 tier 0。
 首个 tier 使用全部 16 个 groups；晋级后使用 13 个当前 tier groups 加 3 个较早
 有效 tier groups（每 group 12 局）。tier 编号保持不变。`min_tier: 0` 仅用于显式

@@ -1,5 +1,13 @@
 # slime 迁移：实现与验收
 
+## 下一次训练默认值（2026-10-16）
+
+用户指定新 job 使用 microbatch=2、block recomputation 24/32层；adapter 已支持
+按 `DP × microbatch` 对齐静态 schedule，不增加真实 episode、不改变 episode 分母。
+保持 CPU optimizer offload、TP=PP=CP=1。旧文中的 microbatch=1 指历史冻结配置，
+当前两个运行中的 job 不变；不再为这次默认值变更安排 GPU 复测。详见
+[下一次训练 handoff](slime-next-training-handoff.md)。
+
 ## 下一轮固定前缀与布局对齐（2026-10-07，工作区修改）
 
 ASCII 改用 `edward-ascii-option-code-v2+fixed-map-dynamic-v1`，固定字段、候选、导航和评分说明由 VLM 固定前缀派生，全部位于地图前；动态地图／状态／候选／输出顺序不变。没有添加缓存对齐文字，SFT 与 RL 共用该 formatter。旧数据及运行中的独立源码快照保持原身份；下一轮需重新准备数据、实测 tokenizer 边界并冻结身份。

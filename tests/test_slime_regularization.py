@@ -229,6 +229,53 @@ def test_driver_injects_reference_actor_before_ray_capture(monkeypatch):
         wrapper(SimpleNamespace(use_kl_loss=True), None, None, actor_cls=Base)
 
 
+@pytest.mark.parametrize("microbatch", [1, 2])
+@pytest.mark.parametrize("drop_output", [False, True])
+def test_reference_counts_decisions_in_static_microbatches(monkeypatch, microbatch, drop_output):
+    from slime_pacman import reference_policy
+
+    package = ModuleType('slime.backends.megatron_utils')
+    model = ModuleType(package.__name__ + '.model')
+
+    def get_batch(iterator, keys):
+        return {'metadata': list(range(microbatch))}
+
+    get_batch._pacman_reference_installed = True
+    model.get_batch = get_batch
+
+    def outputs(logits, *, metadata, **kwargs):
+        vectors = [torch.log_softmax(torch.tensor([0., 1.]), 0) for _ in metadata]
+        return {'allowed_log_probs': vectors, 'log_probs': [v[:1] for v in vectors]}
+
+    def forward(callback, args, models, iterator, counts, **kwargs):
+        vectors, selected = [], []
+        for _ in range(sum(counts)):
+            model.get_batch(iterator, ['tokens'])
+            _, data = callback(torch.zeros(1))
+            vectors.extend(data['allowed_log_probs'])
+            selected.extend(data['log_probs'])
+        if drop_output:
+            vectors.pop()
+            selected.pop()
+        return {'ref_allowed_log_probs': vectors, 'ref_log_probs': selected}
+
+    model.forward_only = forward
+    package.model = model
+    monkeypatch.setitem(sys.modules, package.__name__, package)
+    monkeypatch.setitem(sys.modules, model.__name__, model)
+    monkeypatch.setattr(reference_policy, 'reference_outputs', outputs)
+    actor = reference_policy.ReferencePolicyMixin()
+    actor.args = SimpleNamespace(micro_batch_size=microbatch, rank=0, ref_load='/frozen')
+    actor.model = []
+    if drop_output:
+        with pytest.raises(RuntimeError, match='output count'):
+            actor.compute_log_prob([], [2], store_prefix='ref_')
+    else:
+        result = actor.compute_log_prob([], [2], store_prefix='ref_')
+        assert len(result['ref_log_probs']) == 2 * microbatch
+    assert model.get_batch is get_batch
+
+
 def test_actual_native_reference_callback_return_contract():
     """Execute the pinned callback body, stubbing only distributed math helpers."""
     mpu = SimpleNamespace(get_tensor_model_parallel_group=lambda: None)

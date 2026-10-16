@@ -44,7 +44,8 @@ def install(args):
             or args.pipeline_model_parallel_size != 1
             or args.context_parallel_size != 1
             or not getattr(args, "compute_advantages_and_returns", False)
-            or args.micro_batch_size != 1 or args.use_dynamic_batch_size):
+            or type(args.micro_batch_size) is not int
+            or args.micro_batch_size not in (1, 2) or args.use_dynamic_batch_size):
         raise ValueError("masked reference requires declared frozen reference and static TP=PP=CP=1")
     from slime.backends.megatron_utils import model
     if getattr(model.get_batch, "_pacman_reference_installed", False):
@@ -90,7 +91,8 @@ class ReferencePolicyMixin:
                 raise RuntimeError("reference metadata was not fully consumed")
             vectors = result.get("ref_allowed_log_probs", [])
             selected = result.get("ref_log_probs", [])
-            if len(vectors) != sum(num_microbatches) or len(selected) != len(vectors):
+            expected_rows = sum(num_microbatches) * self.args.micro_batch_size
+            if len(vectors) != expected_rows or len(selected) != len(vectors):
                 raise RuntimeError("masked reference output count does not match static microbatches")
             for vector, value in zip(vectors, selected, strict=True):
                 if (vector.ndim != 1 or not vector.numel() or value.numel() != 1

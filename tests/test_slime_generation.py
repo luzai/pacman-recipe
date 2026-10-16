@@ -175,7 +175,8 @@ def test_history_second_image_and_truncation_are_rejected():
         process_request(Processor(), messages("red"), CONSTRAINT, 2)
 
 
-def test_padding_preserves_episode_denominator_and_real_decisions():
+@pytest.mark.parametrize("microbatch,padded,microsteps", [(1, 56, 7), (2, 64, 4)])
+def test_padding_preserves_episode_denominator_and_real_decisions(microbatch, padded, microsteps):
     schedule = pytest.importorskip("slime.utils.dp_schedule").build_dp_schedule
     # 48 episodes, 49 decisions: cannot be scheduled on DP8 without padding.
     ids = [0] + list(range(48))
@@ -189,8 +190,8 @@ def test_padding_preserves_episode_denominator_and_real_decisions():
         metadata=[dict(episode_id=i, empty_episode=False) for i in ids],
         multimodal_train_inputs=[None] * 49,
     )
-    pad_schedule(data, 8)
-    assert len(data["tokens"]) == 56
+    pad_schedule(data, 8, microbatch)
+    assert len(data["tokens"]) == padded
     assert data["rollout_ids"][:49] == ids and len(set(data["rollout_ids"])) == 48
     assert sum(sum(m) for m in data["loss_masks"]) == 49
     assert data["rollout_mask_sums"] == [
@@ -198,7 +199,7 @@ def test_padding_preserves_episode_denominator_and_real_decisions():
     ]
     args = SimpleNamespace(
         use_dynamic_batch_size=False,
-        micro_batch_size=1,
+        micro_batch_size=microbatch,
         balance_data=False,
         balance_by_flops=False,
     )
@@ -209,12 +210,13 @@ def test_padding_preserves_episode_denominator_and_real_decisions():
         global_batch_size=48,
         rollout_indices=data["rollout_ids"],
     )
-    assert sizes == [48] and micro == [7]
-    assert sorted(i for part in parts for i in part) == list(range(56))
-    assert all(len(batch) == 1 for rank in batches for batch in rank)
+    assert sizes == [48] and micro == [microsteps]
+    assert sorted(i for part in parts for i in part) == list(range(padded))
+    assert all(len(batch) == microbatch for rank in batches for batch in rank)
 
 
-def test_real_upstream_conversion_keeps_support_and_episode_weights():
+@pytest.mark.parametrize("microbatch,padded", [(1, 56), (2, 64)])
+def test_real_upstream_conversion_keeps_support_and_episode_weights(microbatch, padded):
     Sample = pytest.importorskip("slime.utils.types").Sample
     if importlib.util.find_spec("slime.data") is None:
         pytest.importorskip("slime.rollout.batch_builder")
@@ -252,7 +254,7 @@ def test_real_upstream_conversion_keeps_support_and_episode_weights():
                 )
             )
     args = SimpleNamespace(
-        micro_batch_size=1,
+        micro_batch_size=microbatch,
         use_dynamic_batch_size=False,
         tensor_model_parallel_size=1,
         pipeline_model_parallel_size=1,
@@ -265,7 +267,7 @@ def test_real_upstream_conversion_keeps_support_and_episode_weights():
         custom_reward_post_process_path="slime_pacman.grouping.post_process_rewards",
     )
     data = convert_samples(args, samples)
-    assert len(data["tokens"]) == 56 and len(set(data["rollout_ids"])) == 48
+    assert len(data["tokens"]) == padded and len(set(data["rollout_ids"])) == 48
     assert data["metadata"][1]["allowed_token_ids"] == [66, 70]
     assert data["rollout_mask_sums"][:3] == [2, 2, 1]
     assert data["rewards"][0] == data["rewards"][1] == -data["rewards"][2]

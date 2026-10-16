@@ -11,16 +11,18 @@ from .clip_cov import annotate
 logger = logging.getLogger(__name__)
 
 
-def pad_schedule(data, dp_size):
-    """Align microbatch=1 to DP without dropping decisions or adding episodes."""
+def pad_schedule(data, dp_size, micro_batch_size=1):
+    """Align complete static microbatches to DP using only zero-loss padding."""
     count = len(data["tokens"])
     if not count or type(dp_size) is not int or dp_size <= 0:
         raise ValueError("invalid training batch or DP size")
+    if type(micro_batch_size) is not int or micro_batch_size not in (1, 2):
+        raise ValueError("Pacman requires static microbatch=1 or 2")
     if any(
         not isinstance(values, list) or len(values) != count for values in data.values()
     ):
         raise ValueError("upstream conversion contract changed")
-    for _ in range((-count) % dp_size):
+    for _ in range((-count) % (dp_size * micro_batch_size)):
         for values in data.values():
             values.append(deepcopy(values[0]))
         token = data["tokens"][0][-1]
@@ -44,8 +46,9 @@ def convert_samples(args, samples):
             raise
         from slime.rollout.batch_builder import BatchBuilder
 
-    if args.micro_batch_size != 1 or args.use_dynamic_batch_size:
-        raise ValueError("Pacman requires static microbatch=1")
+    if (type(args.micro_batch_size) is not int
+            or args.micro_batch_size not in (1, 2) or args.use_dynamic_batch_size):
+        raise ValueError("Pacman requires static microbatch=1 or 2")
     if (
         args.tensor_model_parallel_size,
         args.pipeline_model_parallel_size,
@@ -64,4 +67,6 @@ def convert_samples(args, samples):
             from pacman_recipe.level1.contracts import write_json_new
 
             write_json_new(Path(os.environ["PACMAN_RUN_DIR"]) / "clip-cov" / f"{summary['seed']:016x}-{uuid.uuid4().hex}.json", summary)
-    return pad_schedule(data, args.actor_num_nodes * args.actor_num_gpus_per_node)
+    return pad_schedule(
+        data, args.actor_num_nodes * args.actor_num_gpus_per_node, args.micro_batch_size
+    )

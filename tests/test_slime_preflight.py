@@ -94,7 +94,10 @@ def test_pinned_patch_and_smoke_command():
     assert value("spec") == "slime_plugins.models.qwen3_5_vl"
     # The pinned actor formats this template using a keyword argument.
     assert Path(value("save-hf").format(rollout_id=0)).name == "hf-0"
-    assert value("global-batch-size") == "48" and value("micro-batch-size") == "1"
+    assert value("global-batch-size") == "48" and value("micro-batch-size") == "2"
+    assert value("recompute-granularity") == "full"
+    assert value("recompute-method") == "block"
+    assert value("recompute-num-layers") == "24"
     assert value("n-samples-per-prompt") == "12" and value("eps-clip-high") == "0.2"
     assert (
         value("custom-convert-samples-to-train-data-path")
