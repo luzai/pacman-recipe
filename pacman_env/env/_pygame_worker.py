@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from pacman_env.env._saved_state import capture_game, restore_game
+from pacman_env.env.ghost_modes import active_ghost_count
 
 
 def _parse_args() -> argparse.Namespace:
@@ -481,16 +482,17 @@ class _PygameBridge:
             raise RuntimeError(
                 "pacman-python must support the explicit ghost-mode contract"
             )
-        if self._ghost_mode == "disabled":
+        inactive_start = 0 if self._ghost_mode == "disabled" else active_ghost_count()
+        if inactive_start < 4:
             # Validate the engine, not just the filtered observation. State 4
             # is natively non-rendering, non-moving and non-colliding.
-            for index in range(4):
+            for index in range(inactive_start, 4):
                 ghost = globals_dict["ghosts"][index]
                 if (
                     ghost.state != 4 or ghost.velX != 0 or ghost.velY != 0
                     or ghost.x != -64 or ghost.y != -64
                 ):
-                    raise RuntimeError("disabled ghost is active in the game engine")
+                    raise RuntimeError("unreported ghost is active in the game engine")
         pygame = self._pygame
         game = globals_dict["thisGame"]
         player = globals_dict["player"]
@@ -629,7 +631,7 @@ class _PygameBridge:
                     }
                     for index in range(4)
                     if self._ghost_mode == "normal"
-                    and index < int(os.environ.get("SMALL_MAZE_GHOST_COUNT", "4"))
+                    and index < active_ghost_count()
                 ],
                 "fruit": {
                     "active": bool(fruit.active),

@@ -2,7 +2,7 @@
   "schema": "pacman-map-training-dependencies-v1",
   "pacman-python": {
     "repository": "https://github.com/luzai/pacman-python",
-    "revision": "8b2bd556bd6cd707a55b3746f21b6c7bfdf30c88"
+    "revision": "f7efb77627ddd8d556f9bb194822c886352911d5"
   },
   "slime": {
     "repository": "https://github.com/luzai/slime",
