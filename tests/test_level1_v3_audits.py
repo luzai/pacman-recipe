@@ -212,6 +212,35 @@ def test_extended_death_animation_rejects_source_frame_advance_after_death():
         )
 
 
+@pytest.mark.parametrize("truncated,reason,terminated,valid", [
+    (True, "max_steps", False, True),
+    (True, None, False, False),
+    (False, "max_steps", False, False),
+    (True, "game_over", False, False),
+    (True, "max_steps", True, False),
+])
+def test_respawn_at_step_budget(truncated, reason, terminated, valid):
+    step = _extended_death_step()
+    step.update(truncated=truncated, terminal_reason=reason, terminated=terminated)
+    def audit():
+        return audit_step_environment_evidence(
+            step, previous_score=0, previous_logic_frame=0,
+            episode_life_mode="original_three_lives")
+    if valid:
+        assert audit() == (0, 1)
+    else:
+        with pytest.raises(ValueError, match="death respawn state"):
+            audit()
+
+
+def test_trajectory_audit_error_preserves_payload_across_processes():
+    import pickle
+    from pacman_recipe.level1.trajectories import TrajectoryAuditError
+    error = pickle.loads(pickle.dumps(TrajectoryAuditError("invalid", {"steps": 32})))
+    assert str(error) == "invalid"
+    assert error.payload == {"steps": 32}
+
+
 def _planner_record():
     evidence = _step_evidence()
     ghost_state = {"ghost_mode": "normal", "ghosts": [{"id": i} for i in range(4)], "edible_ticks": 0}

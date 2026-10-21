@@ -471,11 +471,16 @@ def audit_step_environment_evidence(
     respawned = bool(step.get("respawned"))
     terminal_reason = step.get("terminal_reason")
     if respawned:
+        # A non-final death can respawn on the last allowed decision. The
+        # environment then truncates the episode normally at its step budget.
+        valid_end = (
+            terminal_reason == "max_steps" if step.get("truncated")
+            else terminal_reason is None
+        )
         if (
             not death
             or step.get("terminated")
-            or step.get("truncated")
-            or terminal_reason is not None
+            or not valid_end
             or int(step["pygame_mode"]) != 1
         ):
             raise ValueError("death respawn state is inconsistent")
@@ -734,6 +739,9 @@ class TrajectoryAuditError(ValueError):
     def __init__(self, message: str, payload: dict):
         super().__init__(message)
         self.payload = payload
+
+    def __reduce__(self):
+        return type(self), (str(self), self.payload)
 
 
 def expected_lives_after_step(lives: int, death: bool, score_before: int, score_after: int) -> int:
