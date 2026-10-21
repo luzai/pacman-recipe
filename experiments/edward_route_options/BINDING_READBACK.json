@@ -1,0 +1,137 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "phase": "cpuroll1",
+      "case": "u160-g0-r1-s162",
+      "passed": true,
+      "steps": 31
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u160-g0-r1-s202",
+      "passed": true,
+      "steps": 12
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u160-g0-r4-s161",
+      "passed": true,
+      "steps": 32
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u160-g0-r4-s196",
+      "passed": true,
+      "steps": 20
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u160-g0-r8-s199",
+      "passed": true,
+      "steps": 17
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u163-g0-r5-s421",
+      "passed": true,
+      "steps": 8
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u163-g0-r5-s446",
+      "passed": true,
+      "steps": 14
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u163-g1-r1-s373",
+      "passed": true,
+      "steps": 38
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u163-g1-r1-s445",
+      "passed": true,
+      "steps": 27
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u163-g1-r6-s385",
+      "passed": true,
+      "steps": 19
+    },
+    {
+      "phase": "cpuroll1",
+      "case": "u163-g1-r6-s481",
+      "passed": true,
+      "steps": 14
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u160-g0-r1-s162",
+      "passed": true,
+      "steps": 48
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u160-g0-r1-s202",
+      "passed": true,
+      "steps": 12
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u160-g0-r4-s161",
+      "passed": true,
+      "steps": 49
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u160-g0-r4-s196",
+      "passed": true,
+      "steps": 16
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u160-g0-r8-s199",
+      "passed": true,
+      "steps": 13
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u163-g0-r5-s421",
+      "passed": true,
+      "steps": 18
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u163-g0-r5-s446",
+      "passed": true,
+      "steps": 14
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u163-g1-r1-s373",
+      "passed": true,
+      "steps": 68
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u163-g1-r1-s445",
+      "passed": true,
+      "steps": 68
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u163-g1-r6-s385",
+      "passed": true,
+      "steps": 35
+    },
+    {
+      "phase": "gpupaired1",
+      "case": "u163-g1-r6-s481",
+      "passed": true,
+      "steps": 32
+    }
+  ]
+}

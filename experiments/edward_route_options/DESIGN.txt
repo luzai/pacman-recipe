@@ -1,0 +1,15 @@
+Route-bound short-segment Edward experiment (isolated, no training; LURE off).
+Five paired arms, identical checkpoint160,11 saved states,original RNG and remaining512-step budget:
+A native: unchanged original Edward.
+B native_step1: only commit_moves=1, unchanged native candidates/ranking.
+C multi_step1: previous basic multi-route-assisted single-step prototype (not complete route execution).
+D escape_step1: C plus bounded post-pellet escape viability.
+E bound_segments: D family with explicit route registry, geometric summaries, bounded route execution and route audit. E changes a package: route retention, richer prompt, route candidate diversity, auxiliary route materialization and segment boundaries; cannot attribute E-D solely to multi-route generation.
+A vs B isolates per-step model decision. C vs D isolates escape guard. B vs C changes route generation and short safety together (not individually isolated). All model and CPU results reported separately.
+E route identity hashes origin,target,full actions,portal edges,strategy. Model receives route_id plus all junction choices,turns,portal entry/exit,approach cell/side and next segment boundary. It does not receive RNG or a guarantee of entire-route safety.
+E continuation follows exact chosen action sequence; no candidate regeneration during the segment. Stop after at most4 actions or at junction/portal exit/target. Post-step checks evaluate the next action before execution (simulator is paused between actions). A mismatch or predicted risk invalidates the option; model is recalled. Each executed action and origin must match its bound route. Native risk fallback is explicitly risky and remains one step.
+Route summaries live separately from native candidate schema. Prompt reconstruction and native trajectory audit still apply; separate route audit verifies actions,positions and model-call boundaries.
+Metrics: wins,new deaths,remaining normal pellets,model calls,environment steps,objective switches,immediate opposite-direction actions,ABA returns. Exact route-switch counts only exist for E; previous arms lack full routes, so report NA rather than invent counts. Objective-switch proxy reported for all arms. E route switch means new planned suffix differs before old route completes, not merely a new content hash.
+Preserve old directories and all failed attempts. This11-state diagnostic is correlated within6 source episodes, not a generalization claim. Source episodes fromupdates160/163; both model arms use160.
+
+Information boundary: safety projection uses exported ghost pixel/speed/direction and path_remaining from the current harness, not future RNG. Treat as the existing harness-information protocol, not a claim of image-only perception or player-observable planning. Full route target/topology is harness-assisted.

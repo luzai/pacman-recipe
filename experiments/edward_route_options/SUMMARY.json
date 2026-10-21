@@ -1,0 +1,149 @@
+{
+  "summary": {
+    "CPU_ROLLOUT": [
+      {
+        "mode": "native",
+        "n": 11,
+        "wins": 8,
+        "deaths": 7,
+        "pellets_left": 6,
+        "model_calls": 212,
+        "steps": 336,
+        "objective_switches": 189,
+        "reversals": 78,
+        "aba": 71,
+        "route_switches": null
+      },
+      {
+        "mode": "native_step1",
+        "n": 11,
+        "wins": 8,
+        "deaths": 7,
+        "pellets_left": 6,
+        "model_calls": 338,
+        "steps": 338,
+        "objective_switches": 205,
+        "reversals": 79,
+        "aba": 72,
+        "route_switches": null
+      },
+      {
+        "mode": "multi_step1",
+        "n": 11,
+        "wins": 11,
+        "deaths": 3,
+        "pellets_left": 0,
+        "model_calls": 198,
+        "steps": 198,
+        "objective_switches": 27,
+        "reversals": 11,
+        "aba": 8,
+        "route_switches": null
+      },
+      {
+        "mode": "escape_step1",
+        "n": 11,
+        "wins": 11,
+        "deaths": 0,
+        "pellets_left": 0,
+        "model_calls": 232,
+        "steps": 232,
+        "objective_switches": 27,
+        "reversals": 7,
+        "aba": 7,
+        "route_switches": null
+      },
+      {
+        "mode": "bound_segments",
+        "n": 11,
+        "wins": 11,
+        "deaths": 0,
+        "pellets_left": 0,
+        "model_calls": 164,
+        "steps": 232,
+        "objective_switches": 27,
+        "reversals": 7,
+        "aba": 7,
+        "route_switches": 21
+      }
+    ],
+    "RESULTS": [
+      {
+        "mode": "native",
+        "n": 11,
+        "wins": 6,
+        "deaths": 7,
+        "pellets_left": 9,
+        "model_calls": 475,
+        "steps": 548,
+        "objective_switches": 460,
+        "reversals": 73,
+        "aba": 66,
+        "route_switches": null
+      },
+      {
+        "mode": "native_step1",
+        "n": 11,
+        "wins": 6,
+        "deaths": 7,
+        "pellets_left": 9,
+        "model_calls": 552,
+        "steps": 552,
+        "objective_switches": 488,
+        "reversals": 75,
+        "aba": 68,
+        "route_switches": null
+      },
+      {
+        "mode": "multi_step1",
+        "n": 11,
+        "wins": 11,
+        "deaths": 2,
+        "pellets_left": 0,
+        "model_calls": 337,
+        "steps": 337,
+        "objective_switches": 181,
+        "reversals": 53,
+        "aba": 51,
+        "route_switches": null
+      },
+      {
+        "mode": "escape_step1",
+        "n": 11,
+        "wins": 11,
+        "deaths": 0,
+        "pellets_left": 0,
+        "model_calls": 343,
+        "steps": 343,
+        "objective_switches": 146,
+        "reversals": 44,
+        "aba": 44,
+        "route_switches": null
+      },
+      {
+        "mode": "bound_segments",
+        "n": 11,
+        "wins": 9,
+        "deaths": 0,
+        "pellets_left": 2,
+        "model_calls": 268,
+        "steps": 373,
+        "objective_switches": 143,
+        "reversals": 44,
+        "aba": 44,
+        "route_switches": 109
+      }
+    ]
+  },
+  "reproduction": {
+    "CPU_ROLLOUT": {
+      "native": true,
+      "multi_step1": true,
+      "escape_step1": true
+    },
+    "RESULTS": {
+      "native": true,
+      "multi_step1": true
+    }
+  }
+}
