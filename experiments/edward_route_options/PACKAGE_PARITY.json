@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "ast_parity": {
+    "experimental_planner.py": true,
+    "escape_guard.py": true,
+    "route_bound.py": true,
+    "repair_v1.py": true,
+    "repair_adapter.py": true
+  },
+  "changes": "Relative imports, formatting, unused historical ExperimentalPlanner selector removed; no LURE included."
+}
