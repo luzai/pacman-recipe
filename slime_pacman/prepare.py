@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pacman_recipe.level1.contracts import make_episode_record, write_json_new
 from . import SLIME_REVISION
-from .config import load_config
+from .config import load_config, record_options
 
 
 def prepare(config_path, output, *, recipe_root, game_root, slime_root):
@@ -26,7 +26,7 @@ def prepare(config_path, output, *, recipe_root, game_root, slime_root):
                 recipe_root=recipe_root,
                 game_root=game_root,
                 backend_root=slime_root,
-                max_steps=config.max_steps,
+                **record_options(config),
             )
             for seed in seeds
         ]

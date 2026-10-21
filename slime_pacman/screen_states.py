@@ -21,7 +21,7 @@ from pacman_recipe.level1.contracts import make_episode_record, write_json_new
 
 from .backplay import bind_restart_record
 from .backplay_dataset import _sha, probe_provenance
-from .config import load_config
+from .config import load_config, record_options
 from .rollout import _init_episode_worker, collect_episode_in_worker, current_sources
 
 
@@ -63,7 +63,7 @@ def main():
     config = load_config(args.config)
     template = make_episode_record(0, split="test", recipe_root=Path("/workspace/pacman-recipe"),
                                    game_root=Path("/workspace/pacman-python"),
-                                   backend_root=Path("/workspace/slime"), max_steps=config.max_steps)
+                                   backend_root=Path("/workspace/slime"), **record_options(config))
     bank = load_restart_bank(args.bank)
     provenance = probe_provenance(template, config, bank["bank_id"], _sha(args.server_manifest))
     records = {state_id: bind_restart_record(template, args.bank, state_id) for state_id in state_ids}

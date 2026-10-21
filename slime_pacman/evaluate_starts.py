@@ -15,7 +15,7 @@ import time
 
 from pacman_recipe.level1.contracts import make_episode_record
 
-from .config import load_config
+from .config import load_config, record_options
 from .rollout import _init_episode_worker, collect_episode_in_worker, current_sources
 
 
@@ -55,7 +55,7 @@ def main():
                              initializer=_init_episode_worker) as pool, args.output.open("x") as out:
         futures = {}
         for n, (group, seed, index) in enumerate(jobs):
-            record = make_episode_record(seed, split="test", max_steps=config.max_steps, **roots)
+            record = make_episode_record(seed, split="test", **record_options(config), **roots)
             futures[pool.submit(collect_episode_in_worker, record, args.endpoints[n % len(args.endpoints)],
                                 args.model, args.config, sources, "", None, True)] = (group, seed, index)
         for future in as_completed(futures):

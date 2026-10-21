@@ -13,3 +13,10 @@ updates: 50
 learning_rate: 5.0e-7
 success_life_bonus: 0.1
 success_speed_bonus: 0.05
+episode_life_mode: original_three_lives
+clip_cov: true
+clip_cov_ratio: 0.002
+clip_cov_low: 1.0
+clip_cov_high: 5.0
+swanlab_mode: auto
+swanlab_project: pacman-slime

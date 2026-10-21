@@ -9,7 +9,7 @@ from pacman_recipe.level1.backplay import _wilson, load_restart_bank
 from pacman_recipe.level1.contracts import make_episode_record, write_json_new
 from .backplay import bind_restart_record
 from .backplay_dataset import probe_provenance, _sha
-from .config import load_config
+from .config import load_config, record_options
 from .generation import SGLangGenerator
 from .rollout import EpisodeRunner
 
@@ -23,7 +23,7 @@ async def run(args):
     processor = AutoProcessor.from_pretrained(args.model, local_files_only=True)
     template = make_episode_record(
         0, split="test", recipe_root=args.recipe, game_root=args.game,
-        backend_root=args.slime, max_steps=config.max_steps,
+        backend_root=args.slime, **record_options(config),
     )
     records = [bind_restart_record(template, args.bank, state_id) for state_id in args.candidate_id]
     provenance = probe_provenance(template, config, load_restart_bank(args.bank)["bank_id"],

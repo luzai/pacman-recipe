@@ -88,7 +88,7 @@ def main():
                         ascii_map_format="spaced",
                         action_mode=spec.get("action_mode", "edward"),
                         ghost_mode="disabled" if settings["ghosts"] == 0 else "normal",
-                        episode_life_mode=spec.get("episode_life_mode", "single_death"),
+                        episode_life_mode=spec.get("episode_life_mode", "original_three_lives"),
                         edward_fallback_mode="refuse" if spec.get("action_mode", "edward") == "primitive" else "risk_ranked",
                     )
                     record["id"] = task_id

@@ -1,5 +1,10 @@
 # Pacman Recipe
 
+新 slime 训练默认启用 ClipCOV `0.002,1,5`、四条命、成功奖励
+`1 + 0.1*(1-deaths/3) + 0.05*(1-steps/H)`（失败为0）和 SwanLab。
+配置和指标先落盘，SwanLab 独立进程上传；网络或 SDK 故障不阻断训练。
+默认值、显式关闭、凭据与离线补传见 [训练默认值与记录](docs/slime-tracking-defaults.md)。
+
 Reduced-ghost engine correction: Level-1 `SMALL_MAZE_GHOST_COUNT=1/2` must
 disable the other native ghost objects, not merely truncate the observation.
 The wrapper now rejects active ghosts hidden from its snapshot. Use the paired

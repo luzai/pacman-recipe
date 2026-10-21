@@ -12,6 +12,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest", "pygame>=2.5", "omegaconf>=2.3"]
 agent = ["openai"]
+tracking = ["swanlab>=0.6,<1"]
 dataset = ["datasets"]
 pygame = ["pygame>=2.5"]
 h100-offload = [

@@ -25,7 +25,7 @@ KEY = "clip_cov_detach"
 def declaration():
     """Return (ratio, low, high) from 'ratio,low,high', or None when off."""
     raw = os.environ.get(ENV)
-    if raw is None:
+    if raw is None or raw.lower() in ("off", "false", "disabled"):
         return None
     try:
         ratio, low, high = (float(part) for part in raw.split(","))

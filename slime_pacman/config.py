@@ -28,10 +28,24 @@ class PacmanConfig:
     ascii_map_format: str = "packed"
     vision_image_contract: str = "qwen-min-pixels-537600"
     action_mode: str = "edward"
-    episode_life_mode: str = "single_death"
+    episode_life_mode: str = "original_three_lives"
     ghost_mode: str = "normal"
+    clip_cov: bool = True
+    clip_cov_ratio: float = 0.002
+    clip_cov_low: float = 1.0
+    clip_cov_high: float = 5.0
+    swanlab_mode: str = "auto"
+    swanlab_project: str = "pacman-slime"
 
     def __post_init__(self):
+        if type(self.clip_cov) is not bool:
+            raise ValueError("clip_cov must be a boolean")
+        if (not all(math.isfinite(v) for v in (self.clip_cov_ratio, self.clip_cov_low, self.clip_cov_high))
+                or not 0 < self.clip_cov_ratio <= 0.1
+                or not 0 <= self.clip_cov_low < self.clip_cov_high):
+            raise ValueError("invalid ClipCOV parameters")
+        if self.swanlab_mode not in ("auto", "offline", "disabled") or not self.swanlab_project.strip():
+            raise ValueError("invalid SwanLab mode/project")
         from pacman_env.planner import resolve_fallback_mode
         object.__setattr__(self, "edward_fallback_mode", resolve_fallback_mode(
             self.edward_fallback_mode, edward_options=self.action_mode == "edward"))
@@ -136,3 +150,10 @@ def runner_options(config: PacmanConfig):
         wall_penalty=0.0,
         nearest_pellet_alpha=0.0,
     )
+
+
+def record_options(config: PacmanConfig):
+    """Keep generated episode contracts aligned with the selected runner."""
+    return {name: getattr(config, name) for name in (
+        "max_steps", "observation_mode", "ascii_map_format", "action_mode",
+        "episode_life_mode", "ghost_mode", "edward_fallback_mode")}

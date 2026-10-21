@@ -40,7 +40,7 @@ def test_launcher_initializes_before_upstream_and_strips_wrapper_args(monkeypatc
     )
     monkeypatch.setitem(sys.modules, "ray", ray)
     monkeypatch.setattr(sys, "path", list(sys.path))
-    monkeypatch.setattr(sys, "argv", ["launch", "--slime-root", str(tmp_path),
+    monkeypatch.setattr(sys, "argv", ["launch", "--tracking-child", "--slime-root", str(tmp_path),
         "--config", str(tmp_path / "c2.yaml"), "--run-dir", str(tmp_path / "run"),
         "--", "--spec", "provider", "factory", "--num-rollout", "1"])
     for key in launch.build_environment(slime_root=tmp_path, config=tmp_path / "c2.yaml", run_dir=tmp_path / "run"):

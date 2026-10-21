@@ -232,8 +232,9 @@ def test_schema_records_actual_backend_and_rejects_prompt_drift():
         validate_episode_record(record)
 
 
-def test_real_game_runs_without_areal_and_yields_audited_binary_episode():
-    config = PacmanConfig(max_steps=32)
+@pytest.mark.parametrize("life_mode", ["single_death", "original_three_lives"])
+def test_real_game_runs_without_areal_and_yields_audited_binary_episode(life_mode):
+    config = PacmanConfig(max_steps=32, episode_life_mode=life_mode)
     record = make_episode_record(
         28,
         split="test",
@@ -241,6 +242,7 @@ def test_real_game_runs_without_areal_and_yields_audited_binary_episode():
         game_root=ROOT.parent / "pacman-python",
         backend_root=ROOT.parent / "slime",
         max_steps=32,
+        episode_life_mode=life_mode,
     )
     requests = []
 
@@ -274,7 +276,7 @@ def test_real_game_runs_without_areal_and_yields_audited_binary_episode():
     )
     result = asyncio.run(runner.collect(empty_weight_version="v0"))
     assert result.reward in (0.0, 1.0) and result.trajectory is not None
-    assert result.trajectory["episode"]["episode_life_mode"] == "single_death"
+    assert result.trajectory["episode"]["episode_life_mode"] == life_mode
     assert len(requests) == len(result.decisions) > 1
     assert len(set(requests)) > 1
 

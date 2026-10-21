@@ -19,7 +19,7 @@ from pathlib import Path
 from pacman_recipe.level1.backplay import load_restart_bank
 from pacman_recipe.level1.contracts import make_episode_record, validate_episode_record, write_json_new
 from .backplay import bind_restart_record
-from .config import load_config
+from .config import load_config, record_options
 
 SCHEMA = "pacman-dynamic-bank-dataset-v1"
 
@@ -52,7 +52,7 @@ def fixed_state_ids(bank, source_manifest):
 def prepare(args):
     config = load_config(args.config)
     template = make_episode_record(0, split="train", recipe_root=args.recipe, game_root=args.game,
-                                   backend_root=args.slime, max_steps=config.max_steps)
+                                   backend_root=args.slime, **record_options(config))
     bank = load_restart_bank(args.bank)
     selected_from = getattr(args, "selected_from", None)
     if selected_from is not None:

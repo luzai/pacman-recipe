@@ -10,7 +10,7 @@ from pacman_recipe.level1.backplay import load_restart_bank
 from pacman_recipe.level1.contracts import (make_episode_record, repository_identity,
                                             validate_episode_record, write_json_new)
 from .backplay import bind_restart_record
-from .config import load_config, runner_options
+from .config import load_config, runner_options, record_options
 
 SCHEMA = "pacman-backplay-smoke-dataset-v1"
 SELECTION_SUCCESS_RANGE = (0.1, 0.9)
@@ -174,7 +174,7 @@ def prepare(args):
         raise ValueError("backplay smoke requires updates=1")
     reports = [json.loads(path.read_text()) for path in args.finalist_report]
     template = make_episode_record(0, split="train", recipe_root=args.recipe, game_root=args.game,
-                                   backend_root=args.slime, max_steps=config.max_steps)
+                                   backend_root=args.slime, **record_options(config))
     bank = load_restart_bank(args.bank)
     current_provenance = probe_provenance(template, config, bank["bank_id"], _sha(args.server_manifest))
     provenance = reports[0]["provenance"]

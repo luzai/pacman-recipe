@@ -47,7 +47,11 @@ def build_environment(*, slime_root, config, run_dir):
         from pacman_recipe.level1.vision_prompt import VISION_CONTRACT_ENV
         from .config import load_config
 
-        env[VISION_CONTRACT_ENV] = load_config(config).vision_image_contract
+        cfg = load_config(config)
+        env[VISION_CONTRACT_ENV] = cfg.vision_image_contract
+        # Explicit legacy environment overrides remain supported and are recorded.
+        env.setdefault("PACMAN_EXPERIMENTAL_CLIP_COV", (
+            f"{cfg.clip_cov_ratio},{cfg.clip_cov_low},{cfg.clip_cov_high}" if cfg.clip_cov else "off"))
     return env
 
 
@@ -56,6 +60,7 @@ def main():
     parser.add_argument("--slime-root", required=True, type=Path)
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--run-dir", required=True, type=Path)
+    parser.add_argument("--tracking-child", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("training_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     training_args = args.training_args
@@ -69,6 +74,14 @@ def main():
     entry = Path(environment["SLIME_ROOT"]) / "train.py"
     if not entry.is_file() or not Path(environment["PACMAN_SLIME_CONFIG"]).is_file():
         raise ValueError("slime train.py and Pacman config must exist")
+    from .config import load_config
+    cfg = load_config(args.config)
+    if not args.tracking_child and cfg.swanlab_mode != "disabled":
+        from .tracking import run_logged
+        command = [sys.executable, "-m", "slime_pacman.launch", "--tracking-child",
+                   "--slime-root", str(args.slime_root), "--config", str(args.config),
+                   "--run-dir", str(args.run_dir), "--", *training_args]
+        raise SystemExit(run_logged(command, cfg, environment, training_args))
     import ray
 
     if ray.is_initialized():
