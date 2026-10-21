@@ -1,0 +1,16 @@
+{
+  "schema": "pacman-curriculum-policy-v1",
+  "min_tier": 0,
+  "max_tier": 7,
+  "optimizer_budget": 200,
+  "environment_seed_mode": "group_randomized",
+  "policy": {
+    "threshold": 0.8,
+    "window_batches": 3,
+    "min_games": 384,
+    "consecutive_checks": 2,
+    "min_maps": 8
+  },
+  "tier0": {"width": 7, "height": 7, "ghosts": 0},
+  "resume": "explicit_stage_preserve_model_optimizer_scheduler_rng"
+}

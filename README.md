@@ -35,7 +35,11 @@ offload 和 TP=PP=CP=1。用户已选择直接用于下一次训练，不再额�
 后续 formal map curriculum 新 job 默认从 tier 1 开始，训练、replay 及验证均排除 tier 0。
 首个 tier 使用全部 16 个 groups；晋级后使用 13 个当前 tier groups 加 3 个较早
 有效 tier groups（每 group 12 局）。tier 编号保持不变。`min_tier: 0` 仅用于显式
-复现旧任务；旧 checkpoint 必须使用原配置和源码快照，不能混用新的 curriculum identity。
+复现旧任务或显式的课程预热方案。D5+LoRA A 图像 Primitive 的 tier 0 预热方案见
+`configs/slime/maps/vision-tier0-policy.json`：先在 7×7、无幽灵地图训练，达到原有晋级
+条件后进入 tier 1–7。已有任务切换课程时，须通过 `map_training.stages.begin_stage`
+记录父 checkpoint 的 identity、收据 SHA 和更新边界；保留模型、optimizer、scheduler、
+RNG 与全局预算，只重建课程统计。旧 checkpoint 保留原配置和收据，不能改写历史 identity。
 
 当前 primitive (`live_state_v3`) 与 options prompt 共用 `SHARED_GAME_RULES`：
 最新截图、结构化状态优先、幽灵与通行规则、过关条件及首次死亡即结束本局的规则。
