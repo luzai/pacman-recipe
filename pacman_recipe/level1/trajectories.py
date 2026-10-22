@@ -638,6 +638,18 @@ def _audit_risk_fallback_step(payload: Mapping[str, Any], step: Mapping[str, Any
                    for key in ("ghost_clearance", "route_margin"))
         ):
             raise ValueError("invalid risk fallback candidate evidence")
+        escape_fields = {"escape_horizon", "escape_found", "escape_route"}
+        if escape_fields.intersection(risk):
+            route = risk.get("escape_route")
+            found = risk.get("escape_found")
+            if (not escape_fields.issubset(risk)
+                    or type(risk["escape_horizon"]) is not int or risk["escape_horizon"] != 4
+                    or type(found) is not bool
+                    or (not found and route is not None)
+                    or (found and (not isinstance(route, list) or len(route) != 4
+                                   or any(type(a) is not str or a not in {"U", "D", "L", "R"} for a in route)
+                                   or route[0] != candidate["first_action"]))):
+                raise ValueError("invalid bounded fallback escape evidence")
         if candidate["option_id"] == step.get("option_id") and (
             candidate["first_action"] != step.get("action")
             or list(candidate["target"]) != list(step.get("option_target") or [])

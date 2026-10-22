@@ -91,8 +91,15 @@ def short_safe(level, state, route, horizon=2):
     pos = P.Position(*state['pacman_position'])
     ghosts = []
     for g in state.get('ghosts', []):
-        if g['state'] not in P._LETHAL_STATES:
+        vulnerable = g['state'] == 'vulnerable'
+        if g['state'] not in P._LETHAL_STATES and not vulnerable:
             continue
+        # Unknown expiry is treated conservatively. Never freeze a vulnerable
+        # ghost out of the prediction when it can become lethal mid-action.
+        expiry = g.get('edible_ticks', state.get('edible_ticks', 0)) if vulnerable else 0
+        if type(expiry) not in (int, float) or not math.isfinite(expiry):
+            return False
+        expiry = max(0, expiry)
         if not all((k in g for k in ('pixel_position', 'direction', 'speed'))):
             return False
         y, x = map(float, g['pixel_position'])
@@ -100,22 +107,25 @@ def short_safe(level, state, route, horizon=2):
         d = g['direction']
         if d not in D or not all((math.isfinite(z) for z in (y, x, v))) or v < 0:
             return False
-        ghosts.append(({(y, x, d)}, v))
+        # Native expiry changes state only, not speed. Timer is decremented
+        # before ghost movement/collision; each grid action advances 16 frames.
+        ghosts.append(({(y, x, d)}, v, expiry))
     for step_index, a in enumerate(route[:horizon]):
         pos = move(level, pos, a)
         if pos is None:
             return False
         ty, tx = (pos.row * 16, pos.col * 16)
-        for i, (branches, v) in enumerate(ghosts):
+        for i, (branches, v, expiry) in enumerate(ghosts):
             for frame in range(16):
-                if any((abs(ty - y) < 16 and abs(tx - x) < 16 for y, x, d in branches)):
+                elapsed = step_index * 16 + frame
+                if elapsed >= expiry and any((abs(ty - y) < 16 and abs(tx - x) < 16 for y, x, d in branches)):
                     return False
                 branches = advance(level, branches, v, allow_turn=not (step_index == 0 and frame == 0))
                 if not branches or len(branches) > 512:
                     return False
-                if any((abs(ty - y) < 16 and abs(tx - x) < 16 for y, x, d in branches)):
+                if elapsed + 1 >= expiry and any((abs(ty - y) < 16 and abs(tx - x) < 16 for y, x, d in branches)):
                     return False
-            ghosts[i] = (branches, v)
+            ghosts[i] = (branches, v, expiry)
     return True
 
 def one_step(level, state, target):
@@ -379,6 +389,30 @@ class _ContinuousPlanner(_RoutePlanner):
 
 clean_state = clean
 
+def fallback_escape_route(level, state, first_action, horizon=4):
+    """Find a bounded, non-repeating escape witness, never a safety guarantee.
+
+    Evaluate the entire prefix from the original observation so ghost time is
+    not reset at each search node. Returning from a dead end is allowed once.
+    """
+    start = P.Position(*state['pacman_position'])
+    dst = move(level, start, first_action)
+    if dst is None:
+        return None
+    queue = deque([(dst, (first_action,), frozenset([dst]))])
+    while queue:
+        cell, route, seen = queue.popleft()
+        if not short_safe(level, state, route, horizon=len(route)):
+            continue
+        if len(route) == horizon:
+            return route
+        for action in D:
+            nxt = move(level, cell, action)
+            if nxt is not None and nxt not in seen:
+                queue.append((nxt, route + (action,), seen | {nxt}))
+    return None
+
+
 class LatestEdwardPlanner(_ContinuousPlanner):
     """Route-continuous Edward; all safety dispatch stays instance-local."""
     clean_state = staticmethod(clean_state)
@@ -403,6 +437,20 @@ class LatestEdwardPlanner(_ContinuousPlanner):
 
     def _motion_risk(self, state, target):
         return fallback(self.level, state, target)
+
+    def _risk_fallback_candidates(self, state, player, lethal):
+        candidates = super()._risk_fallback_candidates(state, player, lethal)
+        result = []
+        for candidate in candidates:
+            witness = fallback_escape_route(self.level, state, candidate.first_action)
+            risk = dict(candidate.risk)
+            risk.update(escape_horizon=4, escape_route=list(witness) if witness else None,
+                        escape_found=witness is not None)
+            result.append(replace(candidate, risk=risk))
+        # Information only: never filter, re-rank, rename, or force an action.
+        self.events.append(dict(kind='fallback_escape_audit', information_only=True,
+                                candidates=[dict(action=c.first_action, **c.risk) for c in result]))
+        return tuple(result)
 
     def candidates(self, state):
         return super().candidates(clean_state(state))

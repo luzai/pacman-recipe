@@ -100,3 +100,23 @@ correctness tests are not evidence of preserved win rate. Real-model paired
 replay found no added deaths but introduced one timeout in each of two
 shuffled arms (11 correlated suffixes per model/arm). It does not establish a
 performance benefit or full-game non-regression, so shuffle stays off by default.
+
+## Expiry and bounded escape evidence (2026-10-22)
+
+The short safety envelope now includes vulnerable ghosts that can become lethal
+within the checked window. `edible_ticks` counts native logic frames (16 per grid
+move); the native timer expires before ghost motion/collision, and expiry does
+not change speed. Missing expiry is treated as immediate expiry. The predictor
+keeps public position/direction/speed only; it does not read internal ghost paths.
+It does not simulate eating a ghost or acquiring a new power pellet, so it may
+reject routes which those events would make safe. This remains a bounded motion
+assumption, not a whole-route safety guarantee.
+
+Every fallback candidate additionally reports whether a four-move, non-repeating
+escape witness was found from the current observation. The full prefix is checked
+with one continuous clock. A missing witness does not establish inevitable death.
+This evidence never filters, reorders, changes ranks or binds execution: all open
+directions remain available and fallback still executes one move then replans.
+Prompt evidence is appended only when these optional fields are present; old
+candidate payloads retain their original rendered content. LURE and shuffle stay
+off. Frozen evaluations and the isolated candidate module remain unchanged.

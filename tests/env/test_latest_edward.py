@@ -89,7 +89,12 @@ def test_production_matches_frozen_candidates_and_execution():
         with frozen_guard("final_base"):
             a=old.advertised_candidates(s)
         b=new.advertised_candidates(s)
-        assert a==b and old.route_menu==new.route_menu
+        # Production adds bounded escape evidence without changing fallback
+        # identity/order/rank or execution on these non-vulnerable fixtures.
+        comparable = tuple(replace(c, risk={k:v for k,v in c.risk.items()
+                            if k not in {'escape_horizon','escape_found','escape_route'}})
+                           if c.risk else c for c in b)
+        assert a==comparable and old.route_menu==new.route_menu
         if not any(c.strategy=="COLLECT" for c in a):
             assert all(c.strategy=="RISK_FALLBACK" for c in a)
             continue

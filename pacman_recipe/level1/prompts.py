@@ -188,11 +188,30 @@ def risk_ranked_edward_decision_prompt(
     base = compact_edward_decision_prompt(state_context, candidates, constraint)
     if not risks:
         return base
-    return base + (
+    text = base + (
         EDWARD_RISK_USER_SUFFIX.format(
             risk_state=json.dumps(risks, separators=(",", ":"), allow_nan=False)
         )
     )
+
+    evidence = {
+        constraint.code_for_option(candidate.option_id): {
+            key: candidate.risk[key]
+            for key in ("escape_horizon", "escape_found", "escape_route")
+        }
+        for candidate in candidates
+        if candidate.strategy == "RISK_FALLBACK" and "escape_horizon" in candidate.risk
+    }
+    if evidence:
+        text += (
+            "\nBounded escape evidence by code: "
+            + json.dumps(evidence, separators=(",", ":"), allow_nan=False)
+            + "\nInformation only, not a safety guarantee or execution commitment. "
+            "escape_found=false means no witness was found under the motion assumptions, "
+            "not inevitable death. A witness predicts only the stated short horizon; "
+            "choose one advertised action and replan after one move.\n"
+        )
+    return text
 
 
 def render_edward_decision_prompt(
