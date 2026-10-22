@@ -3,6 +3,11 @@
 新 slime 训练默认启用 ClipCOV `0.002,1,5`、四条命、成功奖励
 `1 + 0.1*(1-deaths/3) + 0.05*(1-steps/H)`（失败为0）和 SwanLab。
 配置和指标先落盘，SwanLab 独立进程上传；网络或 SDK 故障不阻断训练。
+新 formal map 训练默认过滤整组最终 reward 完全相同的样本（包括全零组），
+被拒绝的组默认换同 Tier 的新任务补采，优先未尝试布局；难任务不从题库删除，
+之后仍可被抽到。补齐 16×12 个有效 episode；最多 16 轮，不足则报错且不更新 optimizer。
+独立验证不筛选，课程晋级仍使用首轮未过滤样本。显式关闭及旧任务兼容见
+[group filter](docs/formal-final-reward-filter.md)。正在运行的任务不热更新。
 默认值、显式关闭、凭据与离线补传见 [训练默认值与记录](docs/slime-tracking-defaults.md)。
 
 Reduced-ghost engine correction: Level-1 `SMALL_MAZE_GHOST_COUNT=1/2` must

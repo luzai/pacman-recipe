@@ -7,7 +7,9 @@ from .controller import TrainingWinController
 
 class FormalSampler:
     def __init__(self, catalog, policy, *, max_tier, min_tier=1, seed=20261009,
-                 environment_seed_mode='group_randomized'):
+                 environment_seed_mode='group_randomized', reward_group_filter=None):
+        from .reward_filter import validate_policy
+        reward_group_filter = validate_policy(reward_group_filter)
         if environment_seed_mode not in ('group_randomized', 'fixed_catalog'):
             raise ValueError('invalid environment seed mode')
         self.catalog = deepcopy(catalog)
@@ -39,6 +41,8 @@ class FormalSampler:
                 raise ValueError('each tier requires at least eight train layouts')
             self.by_tier[tier] = rows
         identity_parts = [catalog, seed]
+        if reward_group_filter is not None:
+            identity_parts += ['final-reward-filter-v1', reward_group_filter]
         if environment_seed_mode != 'fixed_catalog':
             identity_parts += ['group-environment-seed-v1', environment_seed_mode]
         self.controller = TrainingWinController(policy, catalog_identity=digest(identity_parts),
@@ -87,6 +91,40 @@ class FormalSampler:
             groups.append(binding)
         return dict(identity=self.controller.identity, bank_version=state['bank_version'],
                     tier=tier, update=update, groups=groups)
+
+    def replacement(self, binding, attempt, history, *, update):
+        """Same-tier fresh layout when available; never remove tasks from the bank.
+
+        Exhausted layout pools cycle deterministically with fresh environment seeds.
+        The controller, catalog and future first-pass plans remain untouched.
+        """
+        tier = binding['task']['tier']
+        pool = self.by_tier[tier]
+        seen = {b['task']['layout_sha256'] for b in history if b['task']['tier'] == tier}
+        previous = next(b for b in reversed(history) if b['group'] == binding['group'])
+        candidates = [t for t in pool if t['layout_sha256'] not in seen]
+        if not candidates:
+            candidates = [t for t in pool
+                          if t['layout_sha256'] != previous['task']['layout_sha256']]
+        domain = f'{self.seed}:replacement-v2:{update}:{binding["group"]}:{attempt}'
+        def seed(label):
+            return int.from_bytes(hashlib.sha256(f'{domain}:{label}'.encode()).digest()[:4], 'big')
+        task = deepcopy(candidates[seed('task') % len(candidates)])
+        if self.environment_seed_mode == 'group_randomized':
+            used = {b['task'].get('game_seed') for b in history}
+            nonce = 0
+            environment_seed = seed(f'environment:{nonce}')
+            while environment_seed in used or environment_seed == task.get('game_seed'):
+                nonce += 1
+                environment_seed = seed(f'environment:{nonce}')
+            task['game_seed'] = environment_seed
+            if 'episode_record' in task:
+                task['episode_record']['environment']['seed'] = environment_seed
+        result = dict(group=binding['group'], task=task, start='initial',
+                      sampling_seeds=[seed(f'policy:{i}') for i in range(12)])
+        if self.environment_seed_mode == 'group_randomized':
+            result['environment_seed'] = task['game_seed']
+        return result
 
     def complete(self, update, episodes, plan=None):
         return self.controller.commit(update=update, plan=plan or self.plan(update),

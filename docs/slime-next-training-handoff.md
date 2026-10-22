@@ -49,3 +49,13 @@ microbatch 1／2 的真实 upstream 转换、零 loss padding、episode 权重�
 测试环境使用 Python 3.13、CPU PyTorch 2.8，非正式 GPU runtime。
 全仓 `python -m pytest tests/ -x` 仍因缺少 `areal` 在收集阶段阻塞。
 没有发起 GPU 复测，不能宣称完整测试套件或端到端 GPU 验收通过。
+
+## Next Vision run: exact final-reward filtering (preparation only)
+
+The requested strict group filter is implemented in the formal rollout
+path. Merge `configs/slime/maps/next-vision-reward-filter.json` into a new run's
+curriculum config; do not change existing snapshots. It collects 16 informative
+groups of 12, with no constant-reward fallback. Details and metrics:
+[final-reward filtering](formal-final-reward-filter.md).
+Starting Tier remains pending the initial D5+LoRA A 64-per-tier validation.
+No training launch is authorized by this preparation change.

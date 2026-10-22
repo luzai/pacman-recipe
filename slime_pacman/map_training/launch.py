@@ -13,6 +13,7 @@ from .checkpoints import atomic_json, restore
 from .controller import TrainingPolicy
 from .sampling import FormalSampler
 from .preflight import verify_files, verify_runtime_receipts
+from .reward_filter import configured_policy
 
 
 HOOKS = {
@@ -95,6 +96,7 @@ def main():
             min_tier=config.get("min_tier", 1),
             seed=config["seed"],
             environment_seed_mode=config.get("environment_seed_mode", "group_randomized"),
+            reward_group_filter=configured_policy(config),
         )
         checkpoint = Path(command[command.index("--load") + 1])
         receipt = restore(checkpoint, identity=sampler.controller.identity)

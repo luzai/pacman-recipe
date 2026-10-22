@@ -1,0 +1,7 @@
+{
+  "reward_group_filter": {
+    "mode": "exact_final_reward",
+    "max_rounds": 16,
+    "retry_task": "same_tier_new_task"
+  }
+}

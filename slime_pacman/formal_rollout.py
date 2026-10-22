@@ -68,6 +68,8 @@ class Runtime:
 
         validate_training_args(args)
         config = json.loads(Path(os.environ["PACMAN_FORMAL_CONFIG"]).read_text())
+        from .map_training.reward_filter import configured_policy
+        self.reward_group_filter = configured_policy(config)
         self.catalog = config["catalog"]
         self.sampler = FormalSampler(
             self.catalog,
@@ -76,6 +78,7 @@ class Runtime:
             min_tier=config.get("min_tier", 1),
             seed=config["seed"],
             environment_seed_mode=config.get("environment_seed_mode", "group_randomized"),
+            reward_group_filter=self.reward_group_filter,
         )
         self.root = Path(os.environ["PACMAN_RUN_DIR"])
         self.identity = self.sampler.controller.identity
@@ -295,26 +298,36 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
         groups = data_source.get_samples(16)
     if len(groups) != len(bindings) or any(len(g) != 12 for g in groups):
         raise ValueError("incomplete collection shape")
-    results = await asyncio.gather(
-        *[
-            asyncio.gather(
-                *[
-                    collect(
-                        args,
-                        binding["task"],
-                        sample,
-                        rollout_id,
-                        binding["group"],
-                        replica,
-                        binding["sampling_seeds"][replica],
-                        evaluation,
-                    )
-                    for replica, sample in enumerate(group)
-                ]
-            )
-            for binding, group in zip(bindings, groups, strict=True)
-        ]
-    )
+    async def launch(round_bindings, attempt):
+        round_groups = groups if attempt == 0 else data_source.get_samples(len(round_bindings))
+        if len(round_groups) != len(round_bindings) or any(len(g) != 12 for g in round_groups):
+            raise ValueError('incomplete resampling allocation')
+        return await asyncio.gather(*[
+            asyncio.gather(*[
+                collect(args, binding['task'], sample, rollout_id, binding['group'],
+                        replica, binding['sampling_seeds'][replica], evaluation)
+                for replica, sample in enumerate(group)
+            ]) for binding, group in zip(round_bindings, round_groups, strict=True)
+        ])
+
+    first_pass = None
+    filter_metrics = {}
+    if not evaluation and runtime.reward_group_filter is not None:
+        from .map_training.reward_filter import collect_effective
+        results, first_pass, stats = await collect_effective(
+            bindings, launch, max_rounds=runtime.reward_group_filter['max_rounds'],
+            replacement=(lambda binding, attempt, history: runtime.sampler.replacement(
+                binding, attempt, history, update=rollout_id))
+            if runtime.reward_group_filter.get('retry_task') == 'same_tier_new_task' else None,
+            audit=lambda attempt, payload: write_once(
+                runtime.root / 'resampling' / f'rollout-{rollout_id:04d}-round-{attempt:03d}.json',
+                payload),
+        )
+        filter_metrics = {f'rollout/reward_filter_{k}': v for k, v in stats.items()}
+        write_once(runtime.root / 'effective-batches' / f'rollout-{rollout_id:04d}.json',
+                   [row for group in results for _, row in group])
+    else:
+        results = await launch(bindings, 0)
     summaries = [result[1] for group in results for result in group]
     sample_groups = [
         [sample for result in group for sample in result[0]] for group in results
@@ -352,15 +365,18 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
                 / len(summaries),
             },
         )
-    runtime.collected(rollout_id, plan, summaries)
+    controller_episodes = first_pass if first_pass is not None else summaries
+    runtime.collected(rollout_id, plan, controller_episodes)
     return finalize_rollout_groups(
         args,
         rollout_id,
         sample_groups,
         metrics={
+            **filter_metrics,
             "curriculum/tier": plan["tier"],
             "curriculum/bank_version": plan["bank_version"],
-            "curriculum/episode_win_rate": sum(row["won"] for row in summaries) / 192,
+            "curriculum/episode_win_rate": sum(row["won"] for row in controller_episodes) / 192,
+            "rollout/effective_episode_win_rate": sum(row['won'] for row in summaries) / 192,
         },
     )
 
