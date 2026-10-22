@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -26,6 +27,19 @@ OPTION_IDS = (
 OPTION_CODE_BY_ID = dict(zip(OPTION_IDS, OPTION_CODE_ALPHABET, strict=True))
 
 
+def shuffled_option_layout(option_ids, key):
+    """Versioned hash permutations; never consume environment/model RNG."""
+    ids = tuple(sorted(set(option_ids)))
+    if not isinstance(key, str) or not key or any(i not in OPTION_CODE_BY_ID for i in ids):
+        raise ValueError("invalid option shuffle key or ids")
+    def digest(domain, value):
+        return hashlib.sha256(f"edward-shuffle-v1:{key}:{domain}:{value}".encode()).digest()
+    order = tuple(sorted(ids, key=lambda i: digest("order", i)))
+    codes = sorted(OPTION_CODE_ALPHABET, key=lambda c: digest("code", c))
+    mapping = dict(zip(ids, codes))
+    return order, mapping
+
+
 class ObjectiveParseError(ValueError):
     """Raised when a completion is not one advertised objective."""
 
@@ -39,7 +53,7 @@ class ObjectiveTokenConstraint:
     token_sequences: tuple[tuple[int, ...], ...]
 
     @classmethod
-    def build(cls, tokenizer: Any, option_ids: Iterable[str]) -> "ObjectiveTokenConstraint":
+    def build(cls, tokenizer: Any, option_ids: Iterable[str], *, shuffle_key: str | None = None) -> "ObjectiveTokenConstraint":
         normalized = tuple(dict.fromkeys(str(item) for item in option_ids))
         if not normalized:
             raise ValueError("objective constraint requires at least one option")
@@ -48,7 +62,10 @@ class ObjectiveTokenConstraint:
             raise ValueError(
                 f"objective constraint has unsupported option IDs: {unknown!r}"
             )
-        rendered = tuple(OPTION_CODE_BY_ID[item] for item in normalized)
+        mapping = OPTION_CODE_BY_ID
+        if shuffle_key is not None:
+            normalized, mapping = shuffled_option_layout(normalized, shuffle_key)
+        rendered = tuple(mapping[item] for item in normalized)
         special_ids = {
             int(item) for item in getattr(tokenizer, "all_special_ids", ())
         }

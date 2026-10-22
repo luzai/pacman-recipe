@@ -72,3 +72,31 @@ settings. The complete latest native integration file passed all 5 tests, includ
 exact middle-boundary restore and cross-harness rejection. An earlier fresh-worker
 identity mismatch during a concurrent local Git commit disappeared after rerunning
 with a stable revision; source-pin checks were retained.
+
+## Shuffled single-letter presentation (2026-10-22)
+
+New native `latest` and legacy runs default to `edward_shuffle_options=False`.
+Set it explicitly to `True` only for an opt-in presentation experiment.
+When enabled, at each Agent boundary independently permute candidate display order and the
+single-token output-code mapping. Models see one letter per candidate, without
+internal A0/C0 IDs. Route summaries use the same letters; original option/route
+IDs stay in logs and execution. Explicit risk ranks remain unchanged, described
+as fallible estimates rather than instructions. Candidate contents, safety checks,
+portal behavior and route continuation are unchanged; LURE remains off.
+
+The versioned permutation derives from episode seed and absolute environment
+step with SHA-256 domains; it consumes no game/model/global RNG. Restoring a
+boundary reproduces its mapping. Each executed option logs its shuffle key and
+code map; trajectory audit recomputes the mapping and validates its boundary key.
+Only reshuffle when requesting a new choice, not during route continuation.
+Risk-fallback audit validates unique contiguous ranks against internal candidate
+IDs, independently of display order. Rank tampering, omitted legal directions,
+and executed action/target mismatches remain rejected.
+
+These local source changes do not hot-update frozen evaluations. Deploy with new
+source/prompt identities; old fixed-code rollouts are not new shuffled training
+data. Existing checkpoints may react differently to new code assignments: CPU
+correctness tests are not evidence of preserved win rate. Real-model paired
+replay found no added deaths but introduced one timeout in each of two
+shuffled arms (11 correlated suffixes per model/arm). It does not establish a
+performance benefit or full-game non-regression, so shuffle stays off by default.

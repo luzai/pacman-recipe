@@ -24,7 +24,7 @@ from .prompts import (
     sent_prompt_sha256, text_sha256,
     edward_system_prompt, render_edward_decision_prompt,
 )
-from .token_constraints import EDWARD_OPTION_CONSTRAINT, OPTION_CODE_BY_ID
+from .token_constraints import EDWARD_OPTION_CONSTRAINT, OPTION_CODE_BY_ID, shuffled_option_layout
 
 
 REQUIRED_ENV_FIELDS = {
@@ -611,7 +611,15 @@ def _audit_risk_fallback_step(payload: Mapping[str, Any], step: Mapping[str, Any
     actions = [candidate.get("first_action") for candidate in risky]
     if len(set(actions)) != len(actions) or set(actions) != set(step.get("open_action_mask") or []):
         raise ValueError("risk fallback must advertise every open direction exactly once")
-    for rank, candidate in enumerate(risky, 1):
+    # Risk rank belongs to candidate identity, not display position.
+    # Preserve the A0..A3 <-> rank1..4 contract under presentation permutations.
+    ranks = [candidate.get("risk", {}).get("rank")
+             if isinstance(candidate.get("risk"), Mapping) else None
+             for candidate in risky]
+    if (any(type(rank) is not int for rank in ranks)
+            or set(ranks) != set(range(1, len(risky) + 1))):
+        raise ValueError("risk fallback ranks must be unique contiguous integers")
+    for candidate, rank in zip(risky, ranks):
         risk = candidate.get("risk")
         if (
             candidate.get("option_id") != f"A{rank - 1}"
@@ -1014,6 +1022,16 @@ def audit_trajectory(payload: Mapping[str, Any]) -> None:
                     if code_map_types_valid
                     else {}
                 )
+                shuffle_key = step.get("option_shuffle_key")
+                if payload.get("decoding", {}).get("edward_shuffle_options"):
+                    expected_key = f"{payload['seed']}:{int(step['env_step']) - int(step['option_step'])}"
+                    if shuffle_key != expected_key:
+                        raise ValueError("invalid Edward option code shuffle key")
+                if shuffle_key is not None:
+                    if not payload.get("decoding", {}).get("edward_shuffle_options"):
+                        raise ValueError("unexpected option shuffle key")
+                    _, mapping = shuffled_option_layout(normalized_code_map.values(), shuffle_key)
+                    canonical_code_map = {code: oid for oid, code in mapping.items()}
                 observation_context = step.get("observation_context")
                 structured_code_map = (
                     observation_context.get("option_code_map")

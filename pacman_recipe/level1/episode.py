@@ -514,6 +514,9 @@ class PacmanEpisodeRunner:
         scripted_ids = list(options.get("scripted_completion_ids") or [])
         edward_options = bool(options.get("edward_options", False))
         edward_harness = options.get("edward_harness", "latest")
+        shuffle_options = options.get("edward_shuffle_options", False)
+        if type(shuffle_options) is not bool:
+            raise ValueError("edward_shuffle_options must be boolean")
         if edward_harness not in ("latest", "legacy"):
             raise ValueError("edward_harness must be latest or legacy")
         if ascii_observation and not edward_options and image_prompt_style != "ascii_primitive_spaced_v1":
@@ -612,6 +615,7 @@ class PacmanEpisodeRunner:
         if planner is not None:
             planner.episode_harness = edward_harness
         active_option: PlannerCandidate | None = None
+        active_shuffle_key = None
         active_objective_constraint: ObjectiveTokenConstraint | None = None
         active_turn: ModelTurn | None = None
         active_action: str | None = None
@@ -766,6 +770,7 @@ class PacmanEpisodeRunner:
                 png = b'' if ascii_observation else encode_png(model_image)
                 live_snapshot = env.snapshot()
                 option_candidates: tuple[PlannerCandidate, ...] = ()
+                shuffle_key = None
                 objective_constraint: ObjectiveTokenConstraint | None = None
                 if edward_options and active_option is None:
                     if planner is None or self.objective_tokenizer is None:
@@ -824,10 +829,15 @@ class PacmanEpisodeRunner:
                         final_info["truncated"] = True
                         final_info["terminal_reason"] = "safety_refusal"
                         break
+                    if shuffle_options:
+                        shuffle_key = f"{seed}:{int(previous_info['step'])}"
                     objective_constraint = ObjectiveTokenConstraint.build(
                         self.objective_tokenizer,
                         (candidate.option_id for candidate in option_candidates),
+                        shuffle_key=shuffle_key,
                     )
+                    by_id = {c.option_id: c for c in option_candidates}
+                    option_candidates = tuple(by_id[i] for i in objective_constraint.option_ids)
                 current_open_actions = [
                     action
                     for action in MOVEMENT_ACTIONS
@@ -922,6 +932,7 @@ class PacmanEpisodeRunner:
                             "edible_ticks": int(
                                 live_snapshot.get("edible_ticks", 0)
                             ),
+                            "option_shuffle_key": shuffle_key,
                             "planner_candidates": [
                                 candidate.as_dict()
                                 for candidate in option_candidates
@@ -1065,6 +1076,7 @@ class PacmanEpisodeRunner:
                         )
                         if hasattr(planner, "bind"):
                             planner.bind(active_option, live_snapshot)
+                        active_shuffle_key = shuffle_key
                         active_objective_constraint = objective_constraint
                         active_turn = turn
                         active_action = active_option.first_action
@@ -1449,6 +1461,7 @@ class PacmanEpisodeRunner:
                         and record_option is not None
                         else None
                     ),
+                    "option_shuffle_key": active_shuffle_key,
                     "option_code_map": (
                         {
                             code: option_id
@@ -1638,7 +1651,7 @@ class PacmanEpisodeRunner:
                         options.get("open_action_mask", False)
                     ),
                     "edward_options": edward_options,
-                    **({"edward_harness": edward_harness} if edward_options else {}),
+                    **({"edward_harness": edward_harness, "edward_shuffle_options": shuffle_options} if edward_options else {}),
                     **({"edward_fallback_mode": fallback_mode}
                        if fallback_mode != "refuse" else {}),
                 },

@@ -60,19 +60,33 @@ def test_only_approved_system_replacements_and_new_identity():
     assert new['prompt_version']=='edward-ascii-option-code-v2+fixed-map-dynamic-v1'
 
 
-def test_archived_prompt_constants_and_renderer_source_unchanged():
+def test_unshuffled_prompt_constants_and_rendering_preserved():
     from pathlib import Path
     source=Path(prompts.__file__)
     old=subprocess.check_output(['git','show','HEAD:pacman_recipe/level1/prompts.py'],cwd=source.parents[2],text=True)
     previous=ast.parse(old); current=ast.parse(source.read_text())
-    names={'SHARED_GAME_RULES','EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT','EDWARD_OPTION_CODE_V2_USER_TEMPLATE',
-           'EDWARD_RISK_NOTICE','EDWARD_RISK_USER_SUFFIX','compact_edward_decision_prompt',
-           'risk_ranked_edward_decision_prompt','edward_system_prompt','render_edward_decision_prompt'}
+    # Shuffled presentation intentionally revises renderer code and system wording.
+    # Keep game rules/risk semantics and unshuffled user rendering compatible.
+    names={'SHARED_GAME_RULES','EDWARD_OPTION_CODE_V2_USER_TEMPLATE',
+           'EDWARD_RISK_NOTICE','EDWARD_RISK_USER_SUFFIX'}
     def selected(tree):
         return {getattr(node,'name',None) or node.targets[0].id:ast.dump(node) for node in tree.body
                 if (getattr(node,'name',None) in names or isinstance(node,ast.Assign) and
                     isinstance(node.targets[0],ast.Name) and node.targets[0].id in names)}
     assert selected(previous)==selected(current)
+    legacy = dict(vars(prompts))
+    functions = {'compact_edward_decision_prompt','risk_ranked_edward_decision_prompt','render_edward_decision_prompt'}
+    nodes = [n for n in previous.body if isinstance(n,ast.FunctionDef) and n.name in functions]
+    exec(compile(ast.Module(body=nodes,type_ignores=[]),'<legacy renderers>','exec'),legacy)
+    from types import SimpleNamespace
+    c=SimpleNamespace(option_id='A0',strategy='RISK_FALLBACK',target=(1,2),first_action='R',
+        route_distance=1,commit_moves=1,safety_margin=None,future_safe_exits=None,entity_id=None,
+        risk=dict(rank=1,motion='clear_estimate',ghost_clearance=2,route_margin=1,
+                  safe_next_cells=0,dead_end=True,reverse=False))
+    constraint=SimpleNamespace(code_for_option=lambda _: 'J',rendered_choices=('J',))
+    ctx={'route_menu':{'A0':{'route_id':'saved-route'}}}
+    assert legacy['render_edward_decision_prompt'](ctx,[c],constraint,fallback_mode='risk_ranked') == prompts.render_edward_decision_prompt(ctx,[c],constraint,fallback_mode='risk_ranked')
+
 
 
 def test_real_pygame_reset_step_save_restore_ascii():

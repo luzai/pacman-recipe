@@ -63,6 +63,7 @@ def test_latest_default_native_binding_and_auditable_route_menu():
     assert boundaries[0]['context']['planner']['edward_harness']=='latest'
     assert boundaries[0]['context']['planner']['route_visits']
     assert ep['decoding']['edward_harness']=='latest'
+    assert ep['decoding']['edward_shuffle_options'] is False
     assert ep['edward_route_audit']['registry']
     assert ep['edward_route_audit']['events']
     assert ep['edward_route_audit']['lure_enabled'] is False
@@ -174,3 +175,18 @@ def test_latest_native_boundary_restores_exact_decision_suffix(tmp_path):
     audit_trajectory(resumed)
     with pytest.raises(ValueError,match='same Edward harness'):
         play(restart,harness='legacy')
+
+
+def test_shuffle_opt_out_retains_fixed_codes_and_audit_rejects_tamper():
+    from copy import deepcopy
+    from pacman_recipe.level1.token_constraints import OPTION_CODE_BY_ID
+    ep=run(edward_shuffle_options=False)
+    for step in ep['trajectory']:
+        assert step['option_shuffle_key'] is None
+        assert all(OPTION_CODE_BY_ID[oid]==code for code,oid in step['option_code_map'].items())
+    audit_trajectory(ep)
+    shuffled=run(edward_shuffle_options=True)
+    bad=deepcopy(shuffled)
+    bad['trajectory'][0]['option_shuffle_key']='tampered-key'
+    with pytest.raises(ValueError,match='option code'):
+        audit_trajectory(bad)

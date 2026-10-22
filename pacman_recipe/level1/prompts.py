@@ -70,8 +70,8 @@ EDWARD_OPTION_CODE_V2_SYSTEM_PROMPT = (
     "exits. Use ELIMINATE only for an edible ghost reachable before vulnerability "
     "expires via a nonlethal route. After selection, the navigator executes at most "
     "commit moves and rechecks safety after every move. Prioritize survival. Rows begin "
-    "[code,id]. Codes map to "
-    "fixed objective ids; only "
+    "with an output code. Codes map to "
+    "this turn's objective labels; only "
     "advertised candidates and their targets are valid this turn. Output exactly one "
     "advertised uppercase option code, not a movement action; no other text."
 )
@@ -99,6 +99,13 @@ EDWARD_OPTION_CODE_V2_USER_TEMPLATE = (
 )
 
 
+def _edward_template(context):
+    template = EDWARD_OPTION_CODE_V2_USER_TEMPLATE
+    if context.get("option_shuffle_key"):
+        template = template.replace("[code,id,strategy", "[code,strategy")
+    return template
+
+
 def compact_edward_decision_prompt(
     state_context: Mapping[str, Any], candidates: Sequence[Any], constraint: Any
 ) -> str:
@@ -118,6 +125,8 @@ def compact_edward_decision_prompt(
         ]
         for candidate in candidates
     ]
+    if state_context.get("option_shuffle_key"):
+        candidate_rows = [[row[0], *row[2:]] for row in candidate_rows]
     decision_state = {
         "p": state_context.get("pacman_position"),
         "f": state_context.get("facing"),
@@ -132,7 +141,7 @@ def compact_edward_decision_prompt(
         "last": state_context.get("last_action"),
         "c": candidate_rows,
     }
-    return EDWARD_OPTION_CODE_V2_USER_TEMPLATE.format(
+    return _edward_template(state_context).format(
         decision_state=json.dumps(
             decision_state, separators=(",", ":"), allow_nan=False
         ),
@@ -197,6 +206,16 @@ def render_edward_decision_prompt(
     )
     text = renderer(state_context, candidates, constraint)
     menu = state_context.get("route_menu")
+    if state_context.get("option_shuffle_key"):
+        text = text.replace("ranked A0..A3 by increasing estimated risk", "with explicit estimated risk ranks")
+        text += ("\nCandidate display order and output codes are shuffled each decision. "
+                 "Codes and positions do not indicate quality. Use only this turn's mapping. "
+                 "Risk ranks are fallible heuristic estimates, not safety guarantees or commands. "
+                 "Independently compare routes, ghosts, dead ends and escape possibilities; "
+                 "do not automatically choose the first option or rank 1.")
+        if menu:
+            menu = {constraint.code_for_option(c.option_id): menu[c.option_id]
+                    for c in candidates if c.option_id in menu}
     if menu:
         text += ('\nBound routes (coordinates row,col): '
                  + json.dumps(menu, separators=(",", ":"), allow_nan=False)
@@ -451,16 +470,19 @@ def render_vision_edward_decision_prompt(
     base = render_edward_decision_prompt(
         state_context, candidates, constraint, fallback_mode=fallback_mode
     )
-    prefix = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}", 1)[0]
+    prefix = _edward_template(state_context).split("{decision_state}", 1)[0]
     serialized_state, tail = base[len(prefix):].split("\n", 1)
     state = json.loads(serialized_state)
     rows = state.pop("c")
-    footer = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}\n", 1)[1].format(
+    footer = _edward_template(state_context).split("{decision_state}\n", 1)[1].format(
         option_codes=",".join(constraint.rendered_choices)
     )
     if not tail.startswith(footer):
         raise ValueError("Edward output instructions changed")
-    return VISION_EDWARD_USER_TEMPLATE.format(
+    template = VISION_EDWARD_USER_TEMPLATE
+    if state_context.get("option_shuffle_key"):
+        template = template.replace("[code,id,strategy", "[code,strategy")
+    return template.format(
         decision_state=json.dumps(state, separators=(",", ":"), allow_nan=False),
         candidate_rows="\n".join(json.dumps(row, separators=(",", ":"), allow_nan=False) for row in rows),
         option_codes=",".join(constraint.rendered_choices),
@@ -472,6 +494,9 @@ def layout_image_user_content(png, instruction, *, prompt_style, edward_options=
     fixed = ""
     if edward_options:
         fixed = VISION_EDWARD_FIXED_PREFIX
+        shuffled_fixed = fixed.replace("[code,id,strategy", "[code,strategy")
+        if instruction.startswith(shuffled_fixed):
+            fixed = shuffled_fixed
     elif prompt_style == "live_state_v3":
         fixed = LIVE_STATE_V3_USER_INSTRUCTION + "\n\n"
     else:
@@ -566,18 +591,21 @@ def compact_ascii_edward_decision_prompt(
     base = render_edward_decision_prompt(
         state_context, candidates, constraint, fallback_mode=fallback_mode
     )
-    prefix = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}", 1)[0]
+    prefix = _edward_template(state_context).split("{decision_state}", 1)[0]
     if not base.startswith(prefix):
         raise ValueError("Edward template prefix changed")
     serialized_state, tail = base[len(prefix):].split("\n", 1)
     state = json.loads(serialized_state)
     candidate_rows = state.pop("c")
-    footer = EDWARD_OPTION_CODE_V2_USER_TEMPLATE.split("{decision_state}\n", 1)[1].format(
+    footer = _edward_template(state_context).split("{decision_state}\n", 1)[1].format(
         option_codes=",".join(constraint.rendered_choices)
     )
     if not tail.startswith(footer):
         raise ValueError("Edward output instructions changed")
-    rendered = ASCII_EDWARD_USER_TEMPLATE.format(
+    template = ASCII_EDWARD_USER_TEMPLATE
+    if state_context.get("option_shuffle_key"):
+        template = template.replace("[code,id,strategy", "[code,strategy")
+    rendered = template.format(
         ascii_map=map_text,
         decision_state=json.dumps(state, separators=(",", ":"), allow_nan=False),
         candidate_rows="\n".join(
