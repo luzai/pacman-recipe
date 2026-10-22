@@ -132,6 +132,8 @@ def recipe_contract_metadata(raw: Mapping[str, Any]) -> dict[str, Any]:
         "harness": {
             "action_protocol": raw.get("action_protocol", "legacy"),
             "edward_options": bool(raw.get("edward_options", False)),
+            **({"edward_harness": raw.get("edward_harness", "latest")}
+               if raw.get("edward_options", False) else {}),
             **({"edward_fallback_mode": fallback_mode}
                if fallback_mode != "refuse" else {}),
             "action_token_choice": bool(raw.get("action_token_choice", False)),

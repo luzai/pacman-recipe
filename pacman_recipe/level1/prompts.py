@@ -195,7 +195,15 @@ def render_edward_decision_prompt(
         risk_ranked_edward_decision_prompt if fallback_mode == "risk_ranked"
         else compact_edward_decision_prompt
     )
-    return renderer(state_context, candidates, constraint)
+    text = renderer(state_context, candidates, constraint)
+    menu = state_context.get("route_menu")
+    if menu:
+        text += ('\nBound routes (coordinates row,col): '
+                 + json.dumps(menu, separators=(",", ":"), allow_nan=False)
+                 + '\nThe harness follows the chosen route to the stated boundary, '
+                 'checking short-term risk each step. This does not guarantee safety '
+                 'for the full route.')
+    return text
 
 
 PROMPT_STYLES = (
@@ -360,6 +368,8 @@ def prompt_contract_metadata(
         "vision_content_source": inspect.getsource(vision_content),
         "vision_edward_renderer_source": inspect.getsource(render_vision_edward_decision_prompt) if edward_options else None,
     }
+    if edward_options:
+        fingerprint["edward_route_renderer_source"] = inspect.getsource(render_edward_decision_prompt)
     if fallback_mode == "risk_ranked":
         fingerprint["base_renderer_source"] = inspect.getsource(
             compact_edward_decision_prompt

@@ -798,6 +798,13 @@ class EdwardPlanner:
         self.level = level or load_bundled_level(1)
         self.reset()
 
+    def _one_step_safe(self, state, target):
+        """Instance override point; legacy prediction remains unchanged."""
+        return _one_step_pixel_safe(self.level, state, target)
+
+    def _motion_risk(self, state, target):
+        return _fallback_motion_risk(self.level, state, target)
+
     def reset(self) -> None:
         self.remaining = set(self.level.pellets | self.level.power_pellets)
         self.last_action: str | None = None
@@ -1127,7 +1134,7 @@ class EdwardPlanner:
             margin = _route_margin(self.level, player, (token,), lethal)
             clearance = _ghost_distance(self.level, lethal, target)
             exits = _future_safe_exits(self.level, target, lethal, player_eta=1)
-            motion = _fallback_motion_risk(self.level, state, target)
+            motion = self._motion_risk(state, target)
             reverse = token == _OPPOSITE.get(self.last_action)
             dead_end = _degree(self.level, target) <= 1
             risk = {
@@ -1252,7 +1259,7 @@ class EdwardPlanner:
             if (
                 margin <= 0
                 or exits < 1
-                or (margin == 1 and not _one_step_pixel_safe(self.level, state, target))
+                or (margin == 1 and not self._one_step_safe(state, target))
             ):
                 continue
             reversal = int(token == _OPPOSITE.get(self.last_action))

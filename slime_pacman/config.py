@@ -23,6 +23,7 @@ class PacmanConfig:
     learning_rate: float = 5e-7
     success_speed_bonus: float = 0.05
     success_life_bonus: float = 0.1
+    edward_harness: str = "latest"
     edward_fallback_mode: str | None = None
     observation_mode: str = "image"
     ascii_map_format: str = "packed"
@@ -49,6 +50,8 @@ class PacmanConfig:
         from pacman_env.planner import resolve_fallback_mode
         object.__setattr__(self, "edward_fallback_mode", resolve_fallback_mode(
             self.edward_fallback_mode, edward_options=self.action_mode == "edward"))
+        if self.edward_harness not in ("latest", "legacy"):
+            raise ValueError("edward_harness must be latest or legacy")
         if self.action_mode not in ("edward", "primitive"):
             raise ValueError("unsupported action mode")
         if self.episode_life_mode not in ("single_death", "original_three_lives") or self.ghost_mode not in ("normal", "disabled"):
@@ -129,6 +132,7 @@ def runner_options(config: PacmanConfig):
         edward_options=config.action_mode == "edward",
         **({"open_action_mask": True} if config.action_mode == "primitive" else {}),
         edward_fallback_mode=config.edward_fallback_mode,
+        edward_harness=config.edward_harness,
         enable_thinking=False,
         image_prompt_style=style,
         prompt_version=prompt['prompt_version'],

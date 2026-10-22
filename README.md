@@ -81,6 +81,8 @@ Radix Cache 的收益需实测；RL 权重更新必须使旧 KV cache 失效。
 
 固定 revision 的 AReaL fork 提供分布式调度、vLLM rollout、FSDP actor/reference engine 和 checkpoint 管理。环境已内置在本仓库，无需独立的 Pacman checkout。
 
+Edward 默认采用[最新连续路线 Harness](docs/edward-default.md)：多路线、逐步安全检查、无幽灵内部路径辅助、portal 保留，`risk_ranked` 回退，LURE 关闭。旧实现可显式选择 `edward_harness: legacy`；现有冻结评估不会自动切换。
+
 新 Edward 运行默认启用[单步风险回退](docs/edward-risk-fallback.md)：正常 options 全部为空时，
 展示所有开放方向及风险提示，让模型选择一步后重新规划。显式 `edward_fallback_mode: refuse`
 可复现旧行为；primitive 默认不变。新运行需重新生成匹配的数据合约。

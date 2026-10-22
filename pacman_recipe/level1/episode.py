@@ -109,6 +109,29 @@ def _boundary_verify(png, candidates, constraint, system_prompt, user_prompt):
     }))
 
 
+def _latest_snapshot_remaining(planner, snapshot, *, recorded=None):
+    """Restore authoritative pellet state; never infer missing snapshot fields."""
+    expected = set()
+    for field, allowed in (("normal_pellet_positions", planner.level.pellets),
+                           ("power_pellet_positions", planner.level.power_pellets)):
+        rows = snapshot.get(field)
+        if not isinstance(rows, (list, tuple)):
+            raise ValueError(f"latest restart requires snapshot {field}")
+        positions = set()
+        for row in rows:
+            if (not isinstance(row, (list, tuple)) or len(row) != 2
+                    or any(not isinstance(v, int) or isinstance(v, bool) for v in row)):
+                raise ValueError(f"invalid latest restart {field}")
+            pos = Position(*row)
+            if pos not in allowed or pos in positions:
+                raise ValueError(f"invalid latest restart {field} coordinate")
+            positions.add(pos)
+        expected.update(positions)
+    if recorded is not None and recorded != expected:
+        raise ValueError("latest decision boundary remaining differs from snapshot")
+    return expected
+
+
 def _decision_boundary(
     env, planner, cell_exit_history, recent_actions, recent_positions, no_progress_steps, verify,
     live_snapshot, previous_info,
@@ -122,6 +145,11 @@ def _decision_boundary(
                 "remaining": sorted([p.row, p.col] for p in planner.remaining),
                 "last_action": planner.last_action,
                 "fallback_mode": planner.fallback_mode,
+                "edward_harness": getattr(planner, "episode_harness", "legacy"),
+                **({"route_visits": [[p.row, p.col, n] for p, n in sorted(planner.visits.items())],
+                    "previous_cell": ([planner.previous_cell.row, planner.previous_cell.col]
+                                      if getattr(planner, "previous_cell", None) is not None else None)}
+                   if hasattr(planner, "visits") else {}),
             },
             "runner": {
                 "cell_exit_history": sorted(
@@ -485,6 +513,9 @@ class PacmanEpisodeRunner:
         scripted_objectives = list(options.get("scripted_objectives") or [])
         scripted_ids = list(options.get("scripted_completion_ids") or [])
         edward_options = bool(options.get("edward_options", False))
+        edward_harness = options.get("edward_harness", "latest")
+        if edward_harness not in ("latest", "legacy"):
+            raise ValueError("edward_harness must be latest or legacy")
         if ascii_observation and not edward_options and image_prompt_style != "ascii_primitive_spaced_v1":
             raise ValueError('ASCII experiment requires Edward actions')
         fallback_mode = resolve_fallback_mode(
@@ -526,6 +557,10 @@ class PacmanEpisodeRunner:
                     raise ValueError(f"dataset {field} does not match actual harness")
         recipe_contract = options.get("recipe_contract")
         if recipe_contract is not None:
+            if edward_options and (recipe_contract.get("harness") or {}).get(
+                "edward_harness", "legacy"
+            ) != edward_harness:
+                raise ValueError("recipe_contract edward_harness differs from runtime")
             if (recipe_contract.get("harness") or {}).get(
                 "edward_fallback_mode", "refuse"
             ) != fallback_mode:
@@ -565,10 +600,17 @@ class PacmanEpisodeRunner:
         remaining_normal_pellets = (
             set(level.pellets) if level is not None else None
         )
+        # EDWARD_ROUTE_HOOKS_V1: native route binding, no runtime monkeypatch.
+        planner_class = EdwardPlanner
+        if edward_options and edward_harness == "latest":
+            from pacman_env.latest_edward import LatestEdwardPlanner
+            planner_class = LatestEdwardPlanner
         planner = (
-            EdwardPlanner(level=active_level, fallback_mode=fallback_mode)
+            planner_class(level=active_level, fallback_mode=fallback_mode)
             if edward_options else None
         )
+        if planner is not None:
+            planner.episode_harness = edward_harness
         active_option: PlannerCandidate | None = None
         active_objective_constraint: ObjectiveTokenConstraint | None = None
         active_turn: ModelTurn | None = None
@@ -610,6 +652,9 @@ class PacmanEpisodeRunner:
                     "remaining_budget": config.max_steps - int(previous_info["step"]),
                 }
             if planner is not None:
+                if (restart_saved is not None and edward_harness == "latest"
+                        and restart_saved.get("boundary_context") is None):
+                    planner.remaining = _latest_snapshot_remaining(planner, env.snapshot())
                 planner.observe(env.snapshot())
             state_prefix_evidence: list[dict[str, Any]] = []
             for prefix_token in state_prefix_actions:
@@ -670,10 +715,20 @@ class PacmanEpisodeRunner:
                 # exactly; the first decision must reproduce the recorded one.
                 if planner is None or boundary_context["planner"]["fallback_mode"] != fallback_mode:
                     raise ValueError("decision boundary requires the same Edward fallback mode")
+                if boundary_context["planner"].get("edward_harness", "legacy") != edward_harness:
+                    raise ValueError("decision boundary requires the same Edward harness")
+                if hasattr(planner, "visits"):
+                    from collections import Counter
+                    planner.visits = Counter({Position(int(r), int(c)): int(n)
+                        for r, c, n in boundary_context["planner"].get("route_visits", [])})
+                    previous_cell = boundary_context["planner"].get("previous_cell")
+                    planner.previous_cell = Position(*previous_cell) if previous_cell is not None else None
                 planner.remaining = {
                     Position(int(row), int(col))
                     for row, col in boundary_context["planner"]["remaining"]
                 }
+                if edward_harness == "latest":
+                    _latest_snapshot_remaining(planner, env.snapshot(), recorded=planner.remaining)
                 planner.last_action = boundary_context["planner"]["last_action"]
                 runner_state = boundary_context["runner"]
                 cell_exit_history = {
@@ -852,10 +907,14 @@ class PacmanEpisodeRunner:
                         state_context = {}
                     if fallback_mode != "refuse":
                         state_context["edward_fallback_mode"] = fallback_mode
+                    planner_snapshot = (
+                        planner.clean_state(live_snapshot)
+                        if hasattr(planner, "clean_state") else live_snapshot
+                    )
                     state_context.update(
                         {
                             "episode_life_mode": config.episode_life_mode,
-                            "ghosts": list(live_snapshot.get("ghosts") or []),
+                            "ghosts": list(planner_snapshot.get("ghosts") or []),
                             "maze_size": [
                                 int(live_snapshot["height"]),
                                 int(live_snapshot["width"]),
@@ -883,6 +942,10 @@ class PacmanEpisodeRunner:
                                 else None
                             ),
                         }
+                    )
+                if planner is not None and hasattr(planner, "route_menu"):
+                    state_context["route_menu"] = (
+                        dict(planner.route_menu) if active_option is None else {}
                     )
                 if ascii_observation:
                     from .prompts import render_ascii_map_for
@@ -1000,6 +1063,8 @@ class PacmanEpisodeRunner:
                             for candidate in option_candidates
                             if candidate.option_id == option_id
                         )
+                        if hasattr(planner, "bind"):
+                            planner.bind(active_option, live_snapshot)
                         active_objective_constraint = objective_constraint
                         active_turn = turn
                         active_action = active_option.first_action
@@ -1211,6 +1276,8 @@ class PacmanEpisodeRunner:
                 previous_action = (
                     recent_actions[-1] if recent_actions else None
                 )
+                if planner is not None and hasattr(planner, "before_action"):
+                    planner.before_action(action.value)
                 next_image, base_reward, terminated, truncated, info = env.step(action)
                 info = dict(info)
                 if planner is not None:
@@ -1571,6 +1638,7 @@ class PacmanEpisodeRunner:
                         options.get("open_action_mask", False)
                     ),
                     "edward_options": edward_options,
+                    **({"edward_harness": edward_harness} if edward_options else {}),
                     **({"edward_fallback_mode": fallback_mode}
                        if fallback_mode != "refuse" else {}),
                 },
@@ -1670,6 +1738,14 @@ class PacmanEpisodeRunner:
                 raise
             except ValueError as exc:
                 raise TrajectoryAuditError(str(exc), payload) from exc
+            if planner is not None and hasattr(planner, "registry"):
+                payload["edward_route_audit"] = {
+                    "harness": edward_harness,
+                    "registry": dict(planner.registry),
+                    "events": list(planner.events),
+                    "safety_checks": planner.safety_checks,
+                    "lure_enabled": bool(getattr(planner, "enable_lure", False)),
+                }
             self._episode_payload.set(payload)
             self.last_episode = payload
             self._record_metrics(payload)
