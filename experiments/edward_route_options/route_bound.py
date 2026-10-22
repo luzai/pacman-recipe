@@ -189,7 +189,7 @@ def install_prompt(prompts, native):
     def renderer(state, candidates, constraint, **kwargs):
         text = original(state, candidates, constraint, **kwargs)
         menu = state.get('route_menu')
-        if not menu:
+        if not menu or '\nBound routes (coordinates row,col): ' in text:
             return text
         return text + '\nBound routes (coordinates row,col): ' + json.dumps(menu, separators=(',', ':')) + '\nThe harness follows the chosen route to the stated boundary, checking short-term risk each step. This does not guarantee safety for the full route.'
     prompts.render_vision_edward_decision_prompt = renderer

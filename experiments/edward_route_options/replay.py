@@ -28,15 +28,16 @@ anchor = '\n            boundary_expected = None\n'
 assert source.count(anchor) == 1
 injection = '            replay_history = options.get("replay_history")\n            if replay_history is not None:\n                cell_exit_history = {tuple(x[:2]): list(x[2]) for x in replay_history["exits"]}\n                recent_actions = list(replay_history["actions"])\n                recent_positions = [tuple(x) for x in replay_history["positions"]]\n                no_progress_steps = replay_history["no_progress"]\n                if planner is not None:\n                    planner.remaining = {Position(*x) for x in replay_history["remaining"]}\n                    planner.last_action = recent_actions[-1] if recent_actions else None\n'
 adapted = source.replace(anchor, '\n' + injection + anchor)
-needle = '                if ascii_observation:\n                    from .prompts import render_ascii_map_for'
-assert adapted.count(needle) == 1
-adapted = adapted.replace(needle, '                if planner is not None and hasattr(planner, "route_menu"):\n                    state_context["route_menu"] = dict(planner.route_menu) if active_option is None else {}\n' + needle)
-needle = '                        active_objective_constraint = objective_constraint'
-assert adapted.count(needle) == 1
-adapted = adapted.replace(needle, '                        if hasattr(planner, "bind"):\n                            planner.bind(active_option, live_snapshot)\n' + needle)
-needle = '                next_image, base_reward, terminated, truncated, info = env.step(action)'
-assert adapted.count(needle) == 1
-adapted = adapted.replace(needle, '                if planner is not None and hasattr(planner, "before_action"):\n                    planner.before_action(action.value)\n' + needle)
+if '# EDWARD_ROUTE_HOOKS_V1' not in source:
+    needle = '                if ascii_observation:\n                    from .prompts import render_ascii_map_for'
+    assert adapted.count(needle) == 1
+    adapted = adapted.replace(needle, '                if planner is not None and hasattr(planner, "route_menu"):\n                    state_context["route_menu"] = dict(planner.route_menu) if active_option is None else {}\n' + needle)
+    needle = '                        active_objective_constraint = objective_constraint'
+    assert adapted.count(needle) == 1
+    adapted = adapted.replace(needle, '                        if hasattr(planner, "bind"):\n                            planner.bind(active_option, live_snapshot)\n' + needle)
+    needle = '                next_image, base_reward, terminated, truncated, info = env.step(action)'
+    assert adapted.count(needle) == 1
+    adapted = adapted.replace(needle, '                if planner is not None and hasattr(planner, "before_action"):\n                    planner.before_action(action.value)\n' + needle)
 exec(compile(adapted, str(O / 'native_episode_replay_adapter.py'), 'exec'), native.__dict__)
 (O / 'native_episode_replay_adapter.py').write_text(adapted)
 manifest = dict(source_sha256=hashlib.sha256(source.encode()).hexdigest(), adapter_sha256=hashlib.sha256(adapted.encode()).hexdigest(), model_updates=160, source_rollouts=[160, 163], fallback='risk_ranked', sampling='greedy constrained argmax; probabilities at temperature0.7', training=False, next_training_clip_cov='0.002,1,5', scope='Five arms: native, native_step1, multi_step1, escape_step1, bound_segments. Same11 states, checkpoint160, RNG and budget. No training or LURE.')
@@ -165,7 +166,7 @@ async def main():
             native.EdwardPlanner = planner_class
             folder = O / os.environ.get('REPLAY_PHASE', 'cpu' if cpu else 'gpu') / case['id'] / mode
             folder.mkdir(parents=True, exist_ok=False)
-            runner = Runner(tokenizer=p.tokenizer, env_factory=env_factory, row_validator=validate_replay_row, edward_options=True, open_action_mask=False, edward_fallback_mode='risk_ranked', image_prompt_style='live_state_v3', episode_life_mode='original_three_lives', enable_thinking=False, pacman_python_root=case['game_root'], worker_base_dir='/tmp/edward-replay', replay_history=history, use_base_reward=False, wall_penalty=0.0, step_penalty=0.0, completion_reward=1.0)
+            runner = Runner(tokenizer=p.tokenizer, env_factory=env_factory, row_validator=validate_replay_row, edward_options=True, edward_harness='legacy', open_action_mask=False, edward_fallback_mode='risk_ranked', image_prompt_style='live_state_v3', episode_life_mode='original_three_lives', enable_thinking=False, pacman_python_root=case['game_root'], worker_base_dir='/tmp/edward-replay', replay_history=history, use_base_reward=False, wall_penalty=0.0, step_penalty=0.0, completion_reward=1.0)
             runner.records = []
             runner.case = case
             runner.mode = mode

@@ -1,7 +1,10 @@
 # Edward route-option experiment
 
-Opt-in, inference-only planner prototypes. Production Edward defaults are unchanged.
-No LURE_PORTAL implementation is included, and this module does not start training.
+Frozen inference-only replay controls and optional LURE_PORTAL. The native Edward
+runner now defaults to the latest no-internal-path continuous implementation;
+see [default integration](../../docs/edward-default.md). LURE remains off.
+[CANDIDATE.md](CANDIDATE.md) records evidence and its limitations. Historical A-E
+implementations and results below remain preserved controls.
 
 ## Variants
 
@@ -19,7 +22,7 @@ Do not attribute all differences to multi-route generation alone.
 
 ## Integration contract
 
-This is not a drop-in training configuration. The replay adapter explicitly adds
+This is not a drop-in training configuration. The replay adapter uses the native hooks when present, otherwise adds
 these hooks to the native runner, preserving its image rendering, constrained
 option-token decoding, game state, RNG, budgets and trajectory audit:
 
@@ -91,7 +94,7 @@ The guarded in-memory native runner adapter fails on incompatible source anchors
 it does not rewrite installed source. Relative imports and configurable roots are
 the only replay packaging changes from the executed frozen script.
 
-## Future LURE_PORTAL (disabled)
+## Original LURE_PORTAL proposal (historical)
 
 Finish the base experiment first, then add a separate optional arm. Require
 observed approaching ghosts and an exit that increases separation or opens a

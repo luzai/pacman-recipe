@@ -1,0 +1,310 @@
+{
+  "scope": "11 correlated saved failure states, not full games; Codex user early-stop after9pairs, no missing episodes counted as failures",
+  "common_cases": [
+    "u160-g0-r1-s162",
+    "u160-g0-r1-s202",
+    "u160-g0-r4-s161",
+    "u160-g0-r4-s196",
+    "u160-g0-r8-s199",
+    "u163-g0-r5-s421",
+    "u163-g0-r5-s446",
+    "u163-g1-r1-s445",
+    "u163-g1-r6-s481"
+  ],
+  "summary": [
+    {
+      "scope": "all_completed",
+      "model": "raw",
+      "arm": "final_base",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 296,
+      "calls": 68,
+      "reversals": 18
+    },
+    {
+      "scope": "all_completed",
+      "model": "raw",
+      "arm": "final_lure",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 296,
+      "calls": 68,
+      "reversals": 18
+    },
+    {
+      "scope": "all_completed",
+      "model": "d5a",
+      "arm": "final_base",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 328,
+      "calls": 76,
+      "reversals": 11
+    },
+    {
+      "scope": "all_completed",
+      "model": "d5a",
+      "arm": "final_lure",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 328,
+      "calls": 76,
+      "reversals": 11
+    },
+    {
+      "scope": "all_completed",
+      "model": "checkpoint160",
+      "arm": "final_base",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 302,
+      "calls": 72,
+      "reversals": 12
+    },
+    {
+      "scope": "all_completed",
+      "model": "checkpoint160",
+      "arm": "final_lure",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 302,
+      "calls": 72,
+      "reversals": 12
+    },
+    {
+      "scope": "all_completed",
+      "model": "primitive170",
+      "arm": "final_base",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 251,
+      "calls": 57,
+      "reversals": 10
+    },
+    {
+      "scope": "all_completed",
+      "model": "primitive170",
+      "arm": "final_lure",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 251,
+      "calls": 57,
+      "reversals": 10
+    },
+    {
+      "scope": "all_completed",
+      "model": "edward1",
+      "arm": "final_base",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 292,
+      "calls": 62,
+      "reversals": 9
+    },
+    {
+      "scope": "all_completed",
+      "model": "edward1",
+      "arm": "final_lure",
+      "n": 11,
+      "wins": 11,
+      "deaths": 0,
+      "steps": 292,
+      "calls": 62,
+      "reversals": 9
+    },
+    {
+      "scope": "all_completed",
+      "model": "Codex",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 188,
+      "calls": 37,
+      "reversals": 5
+    },
+    {
+      "scope": "all_completed",
+      "model": "Codex",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 188,
+      "calls": 37,
+      "reversals": 5
+    },
+    {
+      "scope": "common_cases",
+      "model": "raw",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 251,
+      "calls": 58,
+      "reversals": 15
+    },
+    {
+      "scope": "common_cases",
+      "model": "raw",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 251,
+      "calls": 58,
+      "reversals": 15
+    },
+    {
+      "scope": "common_cases",
+      "model": "d5a",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 258,
+      "calls": 62,
+      "reversals": 6
+    },
+    {
+      "scope": "common_cases",
+      "model": "d5a",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 258,
+      "calls": 62,
+      "reversals": 6
+    },
+    {
+      "scope": "common_cases",
+      "model": "checkpoint160",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 254,
+      "calls": 61,
+      "reversals": 8
+    },
+    {
+      "scope": "common_cases",
+      "model": "checkpoint160",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 254,
+      "calls": 61,
+      "reversals": 8
+    },
+    {
+      "scope": "common_cases",
+      "model": "primitive170",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 203,
+      "calls": 46,
+      "reversals": 6
+    },
+    {
+      "scope": "common_cases",
+      "model": "primitive170",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 203,
+      "calls": 46,
+      "reversals": 6
+    },
+    {
+      "scope": "common_cases",
+      "model": "edward1",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 222,
+      "calls": 48,
+      "reversals": 4
+    },
+    {
+      "scope": "common_cases",
+      "model": "edward1",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 222,
+      "calls": 48,
+      "reversals": 4
+    },
+    {
+      "scope": "common_cases",
+      "model": "Codex",
+      "arm": "final_base",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 188,
+      "calls": 37,
+      "reversals": 5
+    },
+    {
+      "scope": "common_cases",
+      "model": "Codex",
+      "arm": "final_lure",
+      "n": 9,
+      "wins": 9,
+      "deaths": 0,
+      "steps": 188,
+      "calls": 37,
+      "reversals": 5
+    }
+  ],
+  "lure_coverage": "No LURE candidates in completed checkpoint panel; no demonstrated skill benefit",
+  "heldout_v2": {
+    "escape_step1": {
+      "n": 64,
+      "won": 60,
+      "deaths": 26,
+      "steps": 13216,
+      "calls": 13216,
+      "reversals": 919,
+      "timeouts": 4
+    },
+    "continuous": {
+      "n": 64,
+      "won": 58,
+      "deaths": 32,
+      "steps": 12633,
+      "calls": 5608,
+      "reversals": 636,
+      "timeouts": 5
+    },
+    "no_path": {
+      "n": 64,
+      "won": 60,
+      "deaths": 44,
+      "steps": 12001,
+      "calls": 5329,
+      "reversals": 581,
+      "timeouts": 4
+    }
+  }
+}

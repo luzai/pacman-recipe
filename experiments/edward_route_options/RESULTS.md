@@ -1,6 +1,8 @@
 # Paired route-option result (2026-10-21)
 
-**Decision: keep escape-only single-step as the stronger diagnostic baseline.
+**Historical A¨CE result; later candidates are documented in [CANDIDATE.md](CANDIDATE.md).**
+
+**Historical decision for the original short-segment version: keep escape-only single-step as the stronger diagnostic baseline.
 Do not promote the route-bound version to the default or start training.**
 The route-bound implementation passes binding/execution checks but fails the
 requested no-win-regression criterion on real Vision replay.
