@@ -3,13 +3,20 @@ from dataclasses import replace
 from unittest.mock import patch
 import pytest
 from tests.env.test_latest_edward import Grid, state
-from tests.env.test_edward_safety_candidate import danger
 from pacman_env import latest_edward as C, planner as P
 from pacman_recipe.level1.prompts import risk_ranked_edward_decision_prompt
 from pacman_recipe.level1.token_constraints import ObjectiveTokenConstraint
 from tests.test_edward_option_shuffle import Tokenizer
 from tests.test_edward_risk_audit_permutation import fixture
 from pacman_recipe.level1.trajectories import _audit_risk_fallback_step as audit
+
+def danger(ticks=9):
+    """Expiry fixture independent of the optional safety experiment module."""
+    snapshot=state()
+    snapshot['edible_ticks']=ticks
+    snapshot['ghosts']=[dict(id=0,state='vulnerable',position=[2,2],
+        pixel_position=[32,32],direction='L',speed=0)]
+    return snapshot
 
 @pytest.mark.parametrize('ticks,expected', [(0,False),(1,False),(15,False),(16,False),(17,True),(33,True)])
 def test_expiry_boundary_is_logic_frames(ticks, expected):
