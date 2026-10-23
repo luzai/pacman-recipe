@@ -68,6 +68,14 @@ class Runtime:
 
         validate_training_args(args)
         config = json.loads(Path(os.environ["PACMAN_FORMAL_CONFIG"]).read_text())
+        self.evaluation_replicas = config.get('evaluation_replicas', 12)
+        self.final_evaluation_replicas = config.get('final_evaluation_replicas', 12)
+        for count in (self.evaluation_replicas, self.final_evaluation_replicas):
+            if type(count) is not int or count < 1:
+                raise ValueError('evaluation replica counts must be positive integers')
+        self.vqa_probe = config.get('vqa_probe', False)
+        if type(self.vqa_probe) is not bool:
+            raise ValueError('vqa_probe must be boolean')
         from .map_training.reward_filter import configured_policy
         self.reward_group_filter = configured_policy(config)
         self.catalog = config["catalog"]
@@ -265,7 +273,16 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
     from slime.utils.types import Sample
 
     runtime = get_runtime(args)
+    replicas = 12
     if evaluation:
+        total_updates = getattr(args, 'num_rollout', None)
+        final = total_updates is not None and rollout_id == total_updates - 1
+        replicas = getattr(runtime, 'final_evaluation_replicas', 12) if final else getattr(runtime, 'evaluation_replicas', 12)
+        if type(replicas) is not int or replicas < 1:
+            raise ValueError('evaluation replica counts must be positive integers')
+        if getattr(runtime, 'vqa_probe', False):
+            from vqa_probe import evaluate
+            await evaluate(args, rollout_id)
         rows = sorted(
             (r for r in runtime.catalog if r["split"] == "validation"
              and runtime.sampler.min_tier <= r["tier"] <= runtime.sampler.controller.max_tier),
@@ -282,11 +299,11 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
                     ).digest()[:4],
                     "big",
                 )
-                for replica in range(12)
+                for replica in range(replicas)
             ]
             bindings.append(dict(group=group, task=task, sampling_seeds=seeds))
         groups = [
-            [Sample(group_index=i, index=i * 12 + r) for r in range(12)]
+            [Sample(group_index=i, index=i * replicas + r) for r in range(replicas)]
             for i in range(len(rows))
         ]
         plan = None
@@ -296,11 +313,11 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
         plan = runtime.freeze_plan(rollout_id)
         bindings = plan["groups"]
         groups = data_source.get_samples(16)
-    if len(groups) != len(bindings) or any(len(g) != 12 for g in groups):
+    if len(groups) != len(bindings) or any(len(g) != replicas for g in groups):
         raise ValueError("incomplete collection shape")
     async def launch(round_bindings, attempt):
         round_groups = groups if attempt == 0 else data_source.get_samples(len(round_bindings))
-        if len(round_groups) != len(round_bindings) or any(len(g) != 12 for g in round_groups):
+        if len(round_groups) != len(round_bindings) or any(len(g) != replicas for g in round_groups):
             raise ValueError('incomplete resampling allocation')
         return await asyncio.gather(*[
             asyncio.gather(*[
