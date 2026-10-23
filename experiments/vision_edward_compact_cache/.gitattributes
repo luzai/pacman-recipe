@@ -1,0 +1,2 @@
+# Preserve the deployed runtime bytes, including original CRLF and final blank lines.
+runtime/*.py -text whitespace=cr-at-eol,-blank-at-eof
