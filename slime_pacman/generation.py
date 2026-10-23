@@ -108,7 +108,10 @@ class SGLangGenerator:
         declaration = os.environ.get('PACMAN_CACHE_CONTRACT')
         self.cache_contract = json.loads(Path(declaration).read_text()) if declaration else None
         if self.cache_contract:
-            if self.observation_mode != 'ascii' or self.cache_contract['mode'] not in ('fixed', 'off'):
+            if self.observation_mode == 'image':
+                from .fixed_prefix import validate_vision_request
+                validate_vision_request(self.cache_contract, self.cache_contract['canary_ids'])
+            elif self.cache_contract['mode'] not in ('fixed', 'off'):
                 raise ValueError('Fixed cache experiment requires an explicit ASCII arm')
             self.fixed_prefix = validate_prefix(self.cache_contract['prefix'])
 
@@ -122,6 +125,9 @@ class SGLangGenerator:
             prompt, ids, mm, image = process_request(self.processor, messages, constraint, self.max_input_tokens)
             image_url = _image_url(messages)
         support = constraint.allowed_token_ids
+        if self.cache_contract and self.observation_mode == 'image':
+            from .fixed_prefix import validate_vision_request
+            validate_vision_request(self.cache_contract, ids)
         if self.cache_contract and tuple(ids[:len(self.fixed_prefix)]) != self.fixed_prefix:
             raise ValueError('Actual decision prompt differs from frozen fixed prefix')
         body = {

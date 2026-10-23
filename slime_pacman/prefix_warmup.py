@@ -18,13 +18,18 @@ async def warm_engines(client, endpoints, contract, version, *, canary_ids):
         params=dict(temperature=0,max_new_tokens=1,ignore_eos=True)
         body=dict(input_ids=list(tokens),sampling_params=params)
         response=await client.post(endpoint+'/generate',json=body);response.raise_for_status()
-        if str(response.json()['meta_info']['weight_version'])!=str(version):raise ValueError('Policy changed during warmup')
+        prewarm=response.json()['meta_info']
+        if str(prewarm['weight_version'])!=str(version):raise ValueError('Policy changed during warmup')
+        prewarm_cached_tokens=prewarm.get('cached_tokens')
+        if type(prewarm_cached_tokens) is not int or not 0<=prewarm_cached_tokens<=len(tokens):
+            raise ValueError('Missing or invalid prewarm cached-token evidence')
         body['input_ids']=list(canary_ids[:len(tokens)+1])
         response=await client.post(endpoint+'/generate',json=body);response.raise_for_status()
         meta=response.json()['meta_info']
         if meta.get('cached_tokens')!=len(tokens) or str(meta['weight_version'])!=str(version):
             raise ValueError('Fixed node was not warmed at the required policy version')
-        return dict(endpoint=endpoint,version=str(version),cached_tokens=len(tokens),prefix_sha256=contract['prefix']['token_ids_sha256'])
+        return dict(endpoint=endpoint,version=str(version),prewarm_cached_tokens=prewarm_cached_tokens,
+                    cached_tokens=len(tokens),prefix_sha256=contract['prefix']['token_ids_sha256'])
     return await asyncio.gather(*(warm(e) for e in endpoints))
 
 

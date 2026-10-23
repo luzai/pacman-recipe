@@ -63,3 +63,42 @@ def cache_contract(prefix, *, mode, patch_path, startup_args, deterministic, wor
 def assert_same_contract(frozen, actual):
     if frozen != actual:
         raise ValueError('Cache configuration cannot change within an experiment line')
+
+
+def vision_cache_contract(prefix, *, patch_path, startup_args, canary_ids,
+                          vision_start_token_id, workers=16):
+    """Separate Vision contract; never interpret shared image placeholders as text."""
+    tokens = validate_prefix(prefix)
+    args = list(startup_args)
+    for flag, expected in [('--max-running-requests', '8'),
+                           ('--context-length', '8192'),
+                           ('--max-total-tokens', '65536')]:
+        if args.count(flag) != 1 or args.index(flag)+1 >= len(args) or args[args.index(flag)+1] != expected:
+            raise ValueError('Vision cache startup differs: '+flag)
+    if '--disable-radix-cache' in args or workers != 16:
+        raise ValueError('Vision fixed cache requires enabled radix and 16 episode workers')
+    value = dict(schema='pacman-vision-fixed-cache-v1', mode='fixed',
+                 observation_mode='image', prefix=prefix, canary_ids=list(canary_ids),
+                 vision_start_token_id=vision_start_token_id,
+                 patch_sha256=hashlib.sha256(Path(patch_path).read_bytes()).hexdigest(),
+                 startup_args=args, episode_workers=workers, max_running_requests=8,
+                 warmup='each_engine_start_and_every_weight_version_before_dispatch',
+                 other_prefixes='never_insert_or_hit', mutable_within_run=False)
+    validate_vision_request(value, canary_ids)
+    if len(tokens)+1 >= list(canary_ids).index(vision_start_token_id):
+        raise ValueError('Warmup canary must remain strictly before the image')
+    return value
+
+
+def validate_vision_request(contract, ids):
+    tokens = validate_prefix(contract['prefix'])
+    if (contract.get('schema') != 'pacman-vision-fixed-cache-v1'
+            or contract.get('observation_mode') != 'image' or contract.get('mode') != 'fixed'
+            or type(contract.get('vision_start_token_id')) is not int):
+        raise ValueError('Explicit Vision fixed-cache contract required')
+    ids = list(ids)
+    if (tuple(ids[:len(tokens)]) != tokens
+            or contract['vision_start_token_id'] not in ids
+            or ids.index(contract['vision_start_token_id']) < len(tokens)):
+        raise ValueError('Vision prefix identity or actual image boundary differs')
+    return tokens
