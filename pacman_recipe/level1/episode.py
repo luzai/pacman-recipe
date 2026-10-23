@@ -514,6 +514,14 @@ class PacmanEpisodeRunner:
         scripted_ids = list(options.get("scripted_completion_ids") or [])
         edward_options = bool(options.get("edward_options", False))
         edward_harness = options.get("edward_harness", "latest")
+        edward_prompt_variant = options.get("edward_prompt_variant", "standard")
+        if edward_prompt_variant not in ("standard", "compact_v1"):
+            raise ValueError("unsupported Edward prompt variant")
+        if edward_prompt_variant == "compact_v1" and (
+                not edward_options or image_prompt_style != "live_state_v3"
+                or edward_harness != "latest"
+                or config.episode_life_mode != "original_three_lives"):
+            raise ValueError("compact_v1 requires latest Vision Edward")
         shuffle_options = options.get("edward_shuffle_options", False)
         if type(shuffle_options) is not bool:
             raise ValueError("edward_shuffle_options must be boolean")
@@ -538,6 +546,9 @@ class PacmanEpisodeRunner:
                 system_prompt = ascii_system_prompt_for(image_prompt_style, fallback_mode)
             else:
                 system_prompt = edward_system_prompt(fallback_mode)
+        if edward_prompt_variant == "compact_v1":
+            from .compact_vision_edward import system_prompt as compact_system_prompt
+            system_prompt = compact_system_prompt(fallback_mode)
         if edward_options and scripted:
             raise ValueError(
                 "edward_options uses scripted_objectives, not scripted_actions"
@@ -547,7 +558,8 @@ class PacmanEpisodeRunner:
                 "edward objective constraints replace the legacy action mask"
             )
         prompt_metadata = prompt_contract_metadata(
-            image_prompt_style, edward_options=edward_options, fallback_mode=fallback_mode
+            image_prompt_style, edward_options=edward_options, fallback_mode=fallback_mode,
+            edward_prompt_variant=edward_prompt_variant,
         )
         if not edward_options and not options.get("open_action_mask"):
             prompt_metadata["action_protocol"] = "direct-action-token-v1"
@@ -568,6 +580,10 @@ class PacmanEpisodeRunner:
                 "edward_fallback_mode", "refuse"
             ) != fallback_mode:
                 raise ValueError("recipe_contract edward_fallback_mode differs from runtime")
+            if (recipe_contract.get("harness") or {}).get(
+                "edward_prompt_variant", "standard"
+            ) != edward_prompt_variant:
+                raise ValueError("recipe_contract Edward prompt variant differs from runtime")
             # Config bounds are strings (e.g. "inf"); rewards remain finite.
             json.dumps(recipe_contract, allow_nan=False)
             if recipe_contract.get("ghost_mode", config.ghost_mode) != config.ghost_mode:
@@ -578,6 +594,9 @@ class PacmanEpisodeRunner:
         user_instruction = prompt_user_template(
             image_prompt_style, edward_options=edward_options, fallback_mode=fallback_mode
         )
+        if edward_prompt_variant == "compact_v1":
+            from .compact_vision_edward import FIXED
+            user_instruction = FIXED
         trajectory: list[dict[str, Any]] = []
         rewards_by_completion: dict[str, float] = {}
         parse_failures = 0
@@ -958,6 +977,11 @@ class PacmanEpisodeRunner:
                     state_context["route_menu"] = (
                         dict(planner.route_menu) if active_option is None else {}
                     )
+                if edward_prompt_variant == "compact_v1" and planner is not None:
+                    state_context["_route_actions"] = {
+                        oid: planner.registry[rid]["identity"]["actions"]
+                        for oid, rid in planner.menu.items()
+                    }
                 if ascii_observation:
                     from .prompts import render_ascii_map_for
                     state_context['ascii_map'] = render_ascii_map_for(image_prompt_style, active_level, live_snapshot)
@@ -973,6 +997,11 @@ class PacmanEpisodeRunner:
                 if objective_constraint is not None:
                     model_user_instruction = _compact_edward_decision_prompt(
                         state_context, option_candidates, objective_constraint)
+                    if edward_prompt_variant == "compact_v1":
+                        from .compact_vision_edward import render
+                        model_user_instruction = render(
+                            state_context, option_candidates, objective_constraint,
+                            fallback_mode=fallback_mode)
                     if ascii_observation:
                         from .prompts import ascii_decision_prompt_for, render_ascii_map_for
                         model_user_instruction = ascii_decision_prompt_for(
@@ -985,6 +1014,9 @@ class PacmanEpisodeRunner:
                     model_user_instruction = primitive_decision_prompt(state_context)
                 if ascii_observation:
                     messages[1]["content"][0]["text"] = model_user_instruction
+                elif edward_prompt_variant == "compact_v1":
+                    from .compact_vision_edward import layout
+                    messages[1]["content"] = layout(png, model_user_instruction)
                 else:
                     messages[1]["content"] = layout_image_user_content(
                         png, model_user_instruction, prompt_style=image_prompt_style,
@@ -1652,6 +1684,8 @@ class PacmanEpisodeRunner:
                     ),
                     "edward_options": edward_options,
                     **({"edward_harness": edward_harness, "edward_shuffle_options": shuffle_options} if edward_options else {}),
+                    **({"edward_prompt_variant": edward_prompt_variant}
+                       if edward_prompt_variant != "standard" else {}),
                     **({"edward_fallback_mode": fallback_mode}
                        if fallback_mode != "refuse" else {}),
                 },

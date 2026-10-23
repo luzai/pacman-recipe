@@ -356,13 +356,21 @@ def prompt_user_template(
 
 
 def prompt_contract_metadata(
-    prompt_style: str, *, edward_options: bool, fallback_mode: str = "refuse"
+    prompt_style: str, *, edward_options: bool, fallback_mode: str = "refuse",
+    edward_prompt_variant: str = "standard",
 ) -> dict[str, str]:
     """Fingerprint the actual static text AND dynamic rendering implementation.
 
     This is a template fingerprint, not a claim that per-turn prompts are equal.
     Trajectories separately fingerprint the exact rendered messages and image.
     """
+    if edward_prompt_variant not in ("standard", "compact_v1"):
+        raise ValueError("unsupported Edward prompt variant")
+    if edward_prompt_variant == "compact_v1":
+        if prompt_style != "live_state_v3" or not edward_options:
+            raise ValueError("compact_v1 requires Vision Edward live_state_v3")
+        from .compact_vision_edward import contract_metadata
+        return contract_metadata(fallback_mode)
     if prompt_style == "ascii_primitive_spaced_v1":
         if edward_options or fallback_mode != "refuse":
             raise ValueError("Primitive requires direct actions and refuse fallback")

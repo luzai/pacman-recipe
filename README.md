@@ -1,5 +1,9 @@
 # Pacman Recipe
 
+Vision Edward 的精简提示可显式设置 `edward_prompt_variant: compact_v1`，
+保留完整内部路线绑定和安全证据；旧配置默认 `standard` 不变。
+数据与运行配置必须使用同一提示版本，见[精简提示契约](docs/vision-edward-compact-prompt.md)。
+
 新 slime 训练默认启用 ClipCOV `0.002,1,5`、四条命、成功奖励
 `1 + 0.1*(1-deaths/3) + 0.05*(1-steps/H)`（失败为0）和 SwanLab。
 配置和指标先落盘，SwanLab 独立进程上传；网络或 SDK 故障不阻断训练。

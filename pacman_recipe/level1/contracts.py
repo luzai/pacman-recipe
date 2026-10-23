@@ -68,7 +68,8 @@ def repository_identity(path):
 def make_episode_record(
     seed, *, split, recipe_root, game_root, backend_root, backend="slime", max_steps=512,
     observation_mode="image", edward_fallback_mode=None, ascii_map_format="packed",
-    action_mode="edward", ghost_mode="normal", episode_life_mode="single_death"
+    action_mode="edward", ghost_mode="normal", episode_life_mode="single_death",
+    edward_prompt_variant="standard"
 ):
     edward_fallback_mode = resolve_fallback_mode(
         edward_fallback_mode, edward_options=action_mode == "edward")
@@ -130,7 +131,8 @@ def make_episode_record(
         environment=environment,
         source_revisions=sources,
         prompt=prompt_contract_metadata(style,
-                                        edward_options=action_mode == "edward", fallback_mode=edward_fallback_mode),
+                                        edward_options=action_mode == "edward", fallback_mode=edward_fallback_mode,
+                                        edward_prompt_variant=edward_prompt_variant),
     )
 
 
@@ -155,6 +157,9 @@ def validate_episode_record(record, *, expected_sources=None):
                 raise ValueError("invalid source hash")
     known_prompts = [prompt_contract_metadata(style, edward_options=True, fallback_mode=mode)
                      for style in ("live_state_v3", "ascii_edward_v1", "ascii_edward_spaced_v1") for mode in ("refuse", "risk_ranked")]
+    known_prompts.extend(prompt_contract_metadata("live_state_v3", edward_options=True, fallback_mode=mode,
+                                                  edward_prompt_variant="compact_v1")
+                         for mode in ("refuse", "risk_ranked"))
     known_prompts.append(prompt_contract_metadata("ascii_primitive_spaced_v1", edward_options=False))
     if record.get("prompt") not in known_prompts:
         raise ValueError("prompt contract changed; regenerate data")

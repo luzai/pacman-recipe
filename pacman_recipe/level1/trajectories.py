@@ -676,13 +676,20 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
         else prompts
     )
     expected = prompt_module.prompt_contract_metadata(
-        style, edward_options=edward, fallback_mode=fallback_mode
+        style, edward_options=edward, fallback_mode=fallback_mode,
+        **({"edward_prompt_variant": decoding["edward_prompt_variant"]}
+           if decoding.get("edward_prompt_variant", "standard") != "standard" else {}),
     )
     if not edward and not decoding.get("open_action_mask"):
         expected["action_protocol"] = "direct-action-token-v1"
     if any(payload.get(key) != value for key, value in expected.items()):
         raise ValueError("trajectory prompt template does not match actual harness")
     system = (prompt_module.ascii_system_prompt_for(style, fallback_mode) if style in prompts.ASCII_STYLES else prompt_module.edward_system_prompt(fallback_mode)) if edward else prompt_text(style)[0]
+    if decoding.get("edward_prompt_variant") == "compact_v1":
+        if payload.get("episode_life_mode") != "original_three_lives":
+            raise ValueError("compact_v1 requires four-life mode")
+        from .compact_vision_edward import system_prompt as compact_system_prompt
+        system = compact_system_prompt(fallback_mode)
     if payload.get("system_prompt") != system:
         raise ValueError("trajectory system prompt does not match harness")
     for step in payload.get("trajectory", []):
@@ -732,6 +739,9 @@ def _audit_prompt_evidence(payload: Mapping[str, Any]) -> None:
             )
             if style in prompts.ASCII_STYLES:
                 actual = prompts.ascii_decision_prompt_for(style, context, candidates, constraint, context['ascii_map'], fallback_mode=fallback_mode)
+            elif decoding.get("edward_prompt_variant") == "compact_v1":
+                from .compact_vision_edward import render
+                actual = render(context, candidates, constraint, fallback_mode=fallback_mode)
             else:
                 actual = prompt_module.render_vision_edward_decision_prompt(context, candidates, constraint, fallback_mode=fallback_mode)
         elif style == "ascii_primitive_spaced_v1":

@@ -50,6 +50,7 @@ class EpisodeRunner(PacmanEpisodeRunner):
         expected_prompt = prompt_contract_metadata(
             options["image_prompt_style"], edward_options=options["edward_options"],
             fallback_mode=config.edward_fallback_mode,
+            edward_prompt_variant=config.edward_prompt_variant,
         )
         if record["prompt"] != expected_prompt or any(
             record["environment"][key] != getattr(config, key)

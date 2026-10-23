@@ -24,6 +24,7 @@ class PacmanConfig:
     success_speed_bonus: float = 0.05
     success_life_bonus: float = 0.1
     edward_harness: str = "latest"
+    edward_prompt_variant: str = "standard"
     edward_fallback_mode: str | None = None
     observation_mode: str = "image"
     ascii_map_format: str = "packed"
@@ -52,6 +53,13 @@ class PacmanConfig:
             self.edward_fallback_mode, edward_options=self.action_mode == "edward"))
         if self.edward_harness not in ("latest", "legacy"):
             raise ValueError("edward_harness must be latest or legacy")
+        if self.edward_prompt_variant not in ("standard", "compact_v1"):
+            raise ValueError("unsupported Edward prompt variant")
+        if self.edward_prompt_variant == "compact_v1" and (
+                self.action_mode != "edward" or self.observation_mode != "image"
+                or self.edward_harness != "latest"
+                or self.episode_life_mode != "original_three_lives"):
+            raise ValueError("compact_v1 requires latest Vision Edward")
         if self.action_mode not in ("edward", "primitive"):
             raise ValueError("unsupported action mode")
         if self.episode_life_mode not in ("single_death", "original_three_lives") or self.ghost_mode not in ("normal", "disabled"):
@@ -74,7 +82,8 @@ class PacmanConfig:
             raise ValueError("success_speed_bonus must be finite and between 0 and 0.1")
         if not math.isfinite(self.success_life_bonus) or not 0 <= self.success_life_bonus <= 0.1:
             raise ValueError("success_life_bonus must be finite and between 0 and 0.1")
-        expected_groups, expected_clip = (16, 0.05) if self.observation_mode == 'ascii' else (4, 0.2)
+        expected_groups, expected_clip = ((16, 0.05) if self.observation_mode == 'ascii'
+                                         or self.edward_prompt_variant == 'compact_v1' else (4, 0.2))
         if self.group_size != 12 or self.groups_per_update != expected_groups:
             raise ValueError("Declared observation mode requires its fixed group count")
         if self.temperature != 0.7 or self.clip != expected_clip:
@@ -89,8 +98,9 @@ class PacmanConfig:
             value = getattr(self, name)
             if type(value) is not int or value <= 0:
                 raise ValueError(f"{name} must be a positive integer")
-        if self.max_steps > 512 or self.max_input_tokens > 2048:
-            raise ValueError("C2 supports at most 512 steps and 2048 input tokens")
+        input_limit = 4096 if self.edward_prompt_variant == "compact_v1" else 2048
+        if self.max_steps > 512 or self.max_input_tokens > input_limit:
+            raise ValueError(f"C2 supports at most 512 steps and {input_limit} input tokens")
         if set(self.train_seeds) & set(self.validation_seeds):
             raise ValueError("train and validation seeds overlap")
         if self.learning_rate != 5e-7:
@@ -127,12 +137,14 @@ def runner_options(config: PacmanConfig):
     if config.action_mode == "primitive":
         style = "ascii_primitive_spaced_v1"
     prompt = prompt_contract_metadata(style, edward_options=config.action_mode == "edward",
-                                     fallback_mode=config.edward_fallback_mode)
+                                     fallback_mode=config.edward_fallback_mode,
+                                     edward_prompt_variant=config.edward_prompt_variant)
     return dict(
         edward_options=config.action_mode == "edward",
         **({"open_action_mask": True} if config.action_mode == "primitive" else {}),
         edward_fallback_mode=config.edward_fallback_mode,
         edward_harness=config.edward_harness,
+        edward_prompt_variant=config.edward_prompt_variant,
         enable_thinking=False,
         image_prompt_style=style,
         prompt_version=prompt['prompt_version'],
@@ -160,4 +172,4 @@ def record_options(config: PacmanConfig):
     """Keep generated episode contracts aligned with the selected runner."""
     return {name: getattr(config, name) for name in (
         "max_steps", "observation_mode", "ascii_map_format", "action_mode",
-        "episode_life_mode", "ghost_mode", "edward_fallback_mode")}
+        "episode_life_mode", "ghost_mode", "edward_fallback_mode", "edward_prompt_variant")}
