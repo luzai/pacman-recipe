@@ -1014,7 +1014,7 @@ class PacmanEpisodeRunner:
                     model_user_instruction = primitive_decision_prompt(state_context)
                 if ascii_observation:
                     messages[1]["content"][0]["text"] = model_user_instruction
-                elif edward_prompt_variant == "compact_v1":
+                elif edward_prompt_variant == "compact_v1" and objective_constraint is not None:
                     from .compact_vision_edward import layout
                     messages[1]["content"] = layout(png, model_user_instruction)
                 else:
