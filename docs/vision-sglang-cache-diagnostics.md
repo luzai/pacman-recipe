@@ -39,3 +39,9 @@ C allocated212 Mamba states (conv0.23GB+SSM9.98GB) in addition to2GB KV; measure
 Keep production prefix/radixoff. B is a viable independently tested low-memory rollout configuration with modest median throughput cost and a measuredp95cost; do not label it a speed optimization. Production integration requires a deliberate safe checkpoint/engine-rebuild boundary and a fresh formal train-vs-rollout gate, preserving Adam/scheduler/RNG/controller and optimizerbudget. The engine API does not provide proven hot-resizing of its allocation; release/resume is notresize.
 
 Artifacts: local repeated/COMPLETE.json, repeated/PARITY.json and10perroundJSON; AB_SUMMARY.json; fixed.json,prefix.json,PREFIX_FAILED.md. Remote /docker/pacman-vision-edward-sglang-cache-20261022-v1 retains all scripts,requests,logs andcontainer IDs. No training launched by these scripts.
+
+## Legal-action importance correction
+
+Pacman custom loss enables TIS by default, without an extra CLI flag. The upper bound is `DEFAULT_TIS_UPPER_BOUND = 2.0`: `min(2, exp(old_actor_logprob - behavior_logprob))`, detached per decision. Both probabilities use the same legal candidate support and temperature. Existing behavior is unchanged; this is not a newly enabled correction and is not MIS.
+
+Do not add upstream `--use-tis`: the custom loss rejects it to prevent double correction. Exactly one optimizer update per rollout is required. `train/tis_weight_mean` and `train/tis_truncate_fraction` report actual execution. TIS corrects distribution mismatch under its assumptions; it does not validate stale cache state, image identity, candidate support, or cache invalidation after weight updates.

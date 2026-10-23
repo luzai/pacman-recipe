@@ -49,3 +49,11 @@ def test_single_update_contract(changes):
         setattr(args, k, v)
     with pytest.raises(ValueError, match='one optimizer step'):
         validate_single_update(args)
+
+def test_default_tis_bound_is_explicit():
+    from slime_pacman.probability import DEFAULT_TIS_UPPER_BOUND
+    assert DEFAULT_TIS_UPPER_BOUND == 2.0
+    old = torch.tensor([-.2, -.5])
+    behavior = torch.tensor([-2., -.3])
+    torch.testing.assert_close(tis_weights(old, behavior),
+                               tis_weights(old, behavior, DEFAULT_TIS_UPPER_BOUND))

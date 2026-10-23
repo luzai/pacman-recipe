@@ -8,6 +8,9 @@ import torch
 
 from .clip_cov import detach_mask
 
+# Native legal-action correction is always enabled; never stack upstream --use-tis.
+DEFAULT_TIS_UPPER_BOUND = 2.0
+
 
 def validate_support(support, vocab_size):
     if not support or any(
@@ -110,7 +113,7 @@ def validate_policy_clip(args):
         raise ValueError("Pacman temperature/clip contract changed")
 
 
-def tis_weights(old_log_probs, behavior_log_probs, upper_bound=2.0):
+def tis_weights(old_log_probs, behavior_log_probs, upper_bound=DEFAULT_TIS_UPPER_BOUND):
     """Detached per-decision IS weights, upper truncated without sample rejection."""
     if (old_log_probs.shape != behavior_log_probs.shape
             or not math.isfinite(upper_bound) or upper_bound < 1
@@ -216,7 +219,7 @@ def custom_loss(args, batch, logits, sum_of_sample_mean):
     # Thus this forward uses the old actor weights; reuse its detached output.
     # Never use upstream full-vocabulary batch['log_probs'] as the masked old.
     old = new.detach()
-    weights = tis_weights(old, behavior)
+    weights = tis_weights(old, behavior, upper_bound=DEFAULT_TIS_UPPER_BOUND)
     advantages = torch.cat(batch["advantages"]).to(new)
     # Clip-Cov: annotated decisions contribute no policy term (verl corr=0).
     keep = detach_mask(metadata, new)
@@ -235,6 +238,6 @@ def custom_loss(args, batch, logits, sum_of_sample_mean):
         "masked_entropy": entropy.detach(),
         "masked_logprob_abs_diff": sum_of_sample_mean((old - behavior).abs()).detach(),
         "tis_weight_mean": sum_of_sample_mean(weights).detach(),
-        "tis_truncate_fraction": sum_of_sample_mean(((old - behavior) > math.log(2.0)).float()).detach(),
+        "tis_truncate_fraction": sum_of_sample_mean(((old - behavior) > math.log(DEFAULT_TIS_UPPER_BOUND)).float()).detach(),
         "ppo_ratio_mean": sum_of_sample_mean(torch.exp(new - old)).detach(),
     }
