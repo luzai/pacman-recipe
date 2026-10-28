@@ -1,0 +1,29 @@
+{
+  "archive_base_commit": "80c3453d8fbb7b9669a2cd2f0be7510f6dc2a548",
+  "versions": {
+    "original_risk": {
+      "entry": "original_risk/original_adapter.py:install_original",
+      "original_pin": {
+        "commit": "28e9133c7a6cc3313e382b5f3632d0bae11dd031",
+        "path": "maapacman/planner.py",
+        "blob": "d8d0560856946bad95ba27b5e2a0a4d08cfbbf30",
+        "sha256": "1ada6f251d6de0e51eea7530229a81750293e30b57f13d00f2b0c9256fe1d900"
+      },
+      "fallback_mode": "risk_ranked",
+      "harness_config": "legacy",
+      "install_before_episode_creation": true
+    },
+    "latest": {
+      "entry": "pacman_env.latest_edward.LatestEdwardPlanner",
+      "implementation_commit": "670595463632165fa745f775c09c73781821ff6a",
+      "source": "pacman_env/latest_edward.py",
+      "canonical_lf_sha256": "3c37342fcf580da653e905728992981aaa659a265f130678e4b21db5cf6f28c9",
+      "fallback_mode": "risk_ranked",
+      "harness_config": "latest"
+    }
+  },
+  "life_modes": {
+    "single": "single_death",
+    "four": "original_three_lives"
+  }
+}

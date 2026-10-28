@@ -1,0 +1,123 @@
+{
+  "protocol": {
+    "width": 21,
+    "height": 25,
+    "ghosts": 4,
+    "max_steps": 512,
+    "seeds": [
+      940000,
+      940063
+    ],
+    "temperature": 0.7,
+    "training": false,
+    "fixed_single_map": true
+  },
+  "cells": [
+    {
+      "life_mode": "single_death",
+      "model": "raw",
+      "arm": "original_risk",
+      "n": 64,
+      "wins": 5,
+      "deaths": 44,
+      "death_episodes": 44,
+      "timeouts": 15,
+      "safety_refusal": 0,
+      "mean_steps": 297.359375,
+      "mean_calls": 155.265625
+    },
+    {
+      "life_mode": "single_death",
+      "model": "raw",
+      "arm": "latest",
+      "n": 64,
+      "wins": 9,
+      "deaths": 34,
+      "death_episodes": 34,
+      "timeouts": 21,
+      "safety_refusal": 0,
+      "mean_steps": 334.09375,
+      "mean_calls": 110.65625
+    },
+    {
+      "life_mode": "single_death",
+      "model": "d5a",
+      "arm": "original_risk",
+      "n": 64,
+      "wins": 15,
+      "deaths": 41,
+      "death_episodes": 41,
+      "timeouts": 8,
+      "safety_refusal": 0,
+      "mean_steps": 297.625,
+      "mean_calls": 169.765625
+    },
+    {
+      "life_mode": "single_death",
+      "model": "d5a",
+      "arm": "latest",
+      "n": 64,
+      "wins": 27,
+      "deaths": 32,
+      "death_episodes": 32,
+      "timeouts": 5,
+      "safety_refusal": 0,
+      "mean_steps": 321.890625,
+      "mean_calls": 130.953125
+    },
+    {
+      "life_mode": "original_three_lives",
+      "model": "raw",
+      "arm": "original_risk",
+      "n": 64,
+      "wins": 18,
+      "deaths": 86,
+      "death_episodes": 41,
+      "timeouts": 45,
+      "safety_refusal": 0,
+      "mean_steps": 495.484375,
+      "mean_calls": 255.03125
+    },
+    {
+      "life_mode": "original_three_lives",
+      "model": "raw",
+      "arm": "latest",
+      "n": 64,
+      "wins": 37,
+      "deaths": 58,
+      "death_episodes": 42,
+      "timeouts": 27,
+      "safety_refusal": 0,
+      "mean_steps": 473.15625,
+      "mean_calls": 170.859375
+    },
+    {
+      "life_mode": "original_three_lives",
+      "model": "d5a",
+      "arm": "original_risk",
+      "n": 64,
+      "wins": 43,
+      "deaths": 87,
+      "death_episodes": 44,
+      "timeouts": 17,
+      "safety_refusal": 0,
+      "mean_steps": 438.890625,
+      "mean_calls": 245
+    },
+    {
+      "life_mode": "original_three_lives",
+      "model": "d5a",
+      "arm": "latest",
+      "n": 64,
+      "wins": 62,
+      "deaths": 57,
+      "death_episodes": 35,
+      "timeouts": 1,
+      "safety_refusal": 0,
+      "mean_steps": 402.796875,
+      "mean_calls": 178.40625
+    }
+  ],
+  "evidence_directory": "reports/vision-edward-original-risk-only-20261026",
+  "source_summary_sha256": "0c74871c6d96d14c69f0bfd96e8932f708f79691cc905c151fd379932155c6ca"
+}

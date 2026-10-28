@@ -1,0 +1,7 @@
+{
+  "edward_harness": "latest",
+  "edward_fallback_mode": "risk_ranked",
+  "edward_prompt_variant": "compact_v1",
+  "episode_life_mode": "original_three_lives",
+  "ghost_mode": "normal"
+}
