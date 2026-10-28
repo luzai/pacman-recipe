@@ -731,6 +731,14 @@ class PacmanEpisodeRunner:
                     int(previous_info["pacman_position"][1]),
                 )
             )
+            primitive_history = (restart_saved or {}).get('primitive_history')
+            if primitive_history is not None:
+                if edward_options:
+                    raise ValueError('primitive history cannot restore Edward')
+                cell_exit_history = {(int(r), int(c)): list(actions)
+                                     for r, c, actions in primitive_history['cell_exit_history']}
+                recent_actions = list(primitive_history['recent_actions'])
+                recent_positions = [tuple(p) for p in primitive_history['recent_positions']]
             boundary_expected = None
             boundary_context = (restart_saved or {}).get("boundary_context")
             if boundary_context is not None:

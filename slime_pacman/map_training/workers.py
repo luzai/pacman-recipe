@@ -53,7 +53,7 @@ def collect_task(
     sources = current_sources()
     if sources != record["source_revisions"]:
         raise ValueError("map worker source identity differs from record")
-    return collect_episode_in_worker(
+    result = collect_episode_in_worker(
         record,
         endpoint,
         hf_checkpoint,
@@ -65,3 +65,14 @@ def collect_task(
         seed_context,
         True,
     )
+    if record.get('restart') and result.trajectory is not None:
+        # Formal failure-state restarts retain the original life/step reward budget.
+        # Do not change the general EpisodeRunner's suffix-reward contract.
+        from copy import deepcopy
+        from slime_pacman.grouping import success_reward
+        payload = deepcopy(result.trajectory['episode'])
+        payload['steps'] += payload['restart_state']['source_step']
+        payload['restart_state'] = None
+        result.reward = success_reward(payload, success_speed_bonus=result.success_speed_bonus,
+                                       success_life_bonus=result.success_life_bonus)
+    return result

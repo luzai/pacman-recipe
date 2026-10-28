@@ -1,4 +1,5 @@
 {
+  "failure_state_restart": false,
   "reward_group_filter": {
     "mode": "exact_final_reward",
     "max_rounds": 16,

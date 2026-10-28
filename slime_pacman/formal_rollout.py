@@ -45,9 +45,9 @@ def write_once(path, payload):
         json.dump(payload, handle, sort_keys=True, allow_nan=False)
 
 
-def validate_binding(task):
+def validate_binding(task, *, allow_restart=False):
     record = task["episode_record"]
-    if record.get("restart") or record.get("state_prefix_actions"):
+    if record.get("state_prefix_actions") or (record.get("restart") and not (allow_restart and task.get('split') == 'train')):
         raise ValueError("formal rollout requires initial stage")
     if record["environment"]["level_revision"] != task["layout_sha256"]:
         raise ValueError("record and frozen layout identity differ")
@@ -79,16 +79,10 @@ class Runtime:
         from .map_training.reward_filter import configured_policy
         self.reward_group_filter = configured_policy(config)
         self.catalog = config["catalog"]
-        self.sampler = FormalSampler(
-            self.catalog,
-            TrainingPolicy(**config["policy"]),
-            max_tier=config["max_tier"],
-            min_tier=config.get("min_tier", 1),
-            seed=config["seed"],
-            environment_seed_mode=config.get("environment_seed_mode", "group_randomized"),
-            reward_group_filter=self.reward_group_filter,
-        )
         self.root = Path(os.environ["PACMAN_RUN_DIR"])
+        from .map_training.failure_state_restart import make_sampler
+        self.sampler = make_sampler(config, self.root)
+        self.restart_bank = getattr(self.sampler, 'restart_bank', None)
         self.identity = self.sampler.controller.identity
         self.pending = {}
 
@@ -99,7 +93,7 @@ class Runtime:
             )
         plan = self.sampler.plan(update)
         for group in plan["groups"]:
-            validate_binding(group["task"])
+            validate_binding(group["task"], allow_restart=self.restart_bank is not None)
         write_once(self.root / "map-plans" / f"rollout-{update:04d}.json", plan)
         return plan
 
@@ -134,6 +128,8 @@ class Runtime:
             if not builder.is_file():
                 raise ValueError("matching straw builder checkpoint is required")
             extras.append(builder)
+        if self.restart_bank is not None:
+            extras.extend(self.restart_bank.checkpoint(root, update))
         return publish(
             root,
             self.sampler.snapshot(),
@@ -160,6 +156,8 @@ class Runtime:
         from .map_training.checkpoints import restore
 
         receipt = restore(self.args.load, identity=self.identity, update=update)
+        if self.restart_bank is not None:
+            self.restart_bank.restore(self.args.load, receipt['update'])
         snapshot = receipt["controller"]
         self.sampler.restore(
             snapshot,
@@ -194,7 +192,7 @@ async def collect(args, task, sample, update, group, replica, seed, evaluation):
     from .map_training.workers import collect_task
     from .rollout import samples_from_episode, _multimodal_to_torch
 
-    record, context = validate_binding(task)
+    record, context = validate_binding(task, allow_restart=not evaluation and get_runtime(args).restart_bank is not None)
     sample.metadata = deepcopy(sample.metadata or {})
     sample.metadata.update(episode_record=record, map_context=context)
     value = getattr(args, "_rollout_weight_version", None)
@@ -383,6 +381,8 @@ async def rollout_async(args, rollout_id, data_source, evaluation=False):
             },
         )
     controller_episodes = first_pass if first_pass is not None else summaries
+    if getattr(runtime, 'restart_bank', None) is not None:
+        runtime.restart_bank.observe(runtime.root, rollout_id, plan, controller_episodes)
     runtime.collected(rollout_id, plan, controller_episodes)
     return finalize_rollout_groups(
         args,

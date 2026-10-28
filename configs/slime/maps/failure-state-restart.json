@@ -1,0 +1,9 @@
+{
+  "failure_state_restart": {
+    "fraction": 0.8,
+    "bins": [[4, 7], [8, 15], [16, 32]],
+    "max_entries_per_tier": 64,
+    "max_age_updates": 12,
+    "seed": 20261027
+  }
+}

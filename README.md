@@ -1,5 +1,11 @@
 # Pacman Recipe
 
+新 Primitive formal map 训练默认启用 **Failure-State Restart（失败前状态重启训练）**：
+当前 Tier 和低 Tier 回放各自请求80%死亡前4–32步完整状态重启、20%正常开局。
+显式 `"failure_state_restart": false` 可关闭；旧任务恢复须保留旧配置身份。
+正常开局验证、原始生命与总步数预算保持不变，详见
+[Failure-State Restart](docs/failure-state-restart.md)。
+
 Vision Edward 的精简提示可显式设置 `edward_prompt_variant: compact_v1`，
 保留完整内部路线绑定和安全证据；旧配置默认 `standard` 不变。
 数据与运行配置必须使用同一提示版本，见[精简提示契约](docs/vision-edward-compact-prompt.md)。
