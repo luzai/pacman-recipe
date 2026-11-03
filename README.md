@@ -1,5 +1,11 @@
 # Pacman Recipe
 
+实验 work session 的可复用组件已整合：
+[checkpoint 恢复审计与保留选择](docs/checkpoint-audit-helpers.md)、
+[显式 action-prefix 隔离](docs/action-prefix-isolation.md)，以及
+[engine-assisted LoRA、训练样本契约和独立评测路由](docs/experimental-engine-assisted.md)。
+这些组件不改变现有训练默认值；实验组件不是完整训练／部署入口，具体依赖和验收范围见各文档。
+
 新 Primitive formal map 训练默认启用 **Failure-State Restart（失败前状态重启训练）**：
 当前 Tier 和低 Tier 回放各自请求80%死亡前4–32步完整状态重启、20%正常开局。
 显式 `"failure_state_restart": false` 可关闭；旧任务恢复须保留旧配置身份。

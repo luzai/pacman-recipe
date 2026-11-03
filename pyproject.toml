@@ -13,6 +13,7 @@ dependencies = [
 dev = ["pytest", "pygame>=2.5", "omegaconf>=2.3"]
 agent = ["openai"]
 tracking = ["swanlab>=0.6,<1"]
+experimental-training = ["torch>=2.4"]
 dataset = ["datasets"]
 pygame = ["pygame>=2.5"]
 h100-offload = [
@@ -23,6 +24,7 @@ h100-offload = [
 include = ["pacman_recipe*", "pacman_env*", "slime_pacman*", "areal_pacman*", "maapacman*", "vg_sft*"]
 
 [tool.setuptools.package-data]
+"pacman_recipe.experimental.engine_assisted" = ["SOURCES.json"]
 "pacman_recipe.synthetic" = ["maze_suites/*.json"]
 "pacman_env.env" = ["*.md", "levels/*.txt", "levels/*.json", "levels/*.md"]
 

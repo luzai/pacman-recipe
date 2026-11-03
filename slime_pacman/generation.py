@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import math
+import os
 import uuid
 
 import torch
@@ -95,21 +96,33 @@ def process_text_request(processor, messages, max_input_tokens):
 
 
 class SGLangGenerator:
-    def __init__(self, *, processor, endpoint, client, max_input_tokens=2048, observation_mode='image', cache_contract_enabled=True):
+    def __init__(self, *, processor, endpoint, client, max_input_tokens=2048, observation_mode='image', cache_contract_enabled=True, action_prefix_isolation=None):
         if observation_mode not in ('image', 'ascii'):
             raise ValueError('Unsupported observation mode')
         if type(cache_contract_enabled) is not bool:
             raise ValueError('cache_contract_enabled must be an explicit boolean')
-        self.require_uncached = not cache_contract_enabled
+        # None keeps legacy and independent diagnostic callers unchanged. Policy
+        # rollout supplies its explicit config mode, including the default off.
+        modes = ('off', 'unique-extra-key-v1')
+        if action_prefix_isolation is not None:
+            if action_prefix_isolation not in modes:
+                raise ValueError('unsupported action_prefix_isolation')
+            environment_mode = os.environ.get('PACMAN_ACTION_PREFIX_ISOLATION', 'off')
+            if environment_mode != action_prefix_isolation:
+                raise ValueError('action_prefix_isolation config/environment mismatch')
+        self.action_prefix_isolation = action_prefix_isolation == 'unique-extra-key-v1'
+        self.require_uncached = not cache_contract_enabled or self.action_prefix_isolation
         self.observation_mode = observation_mode
         self.processor, self.endpoint, self.client = processor, endpoint, client
         self.max_input_tokens = max_input_tokens
         self.serialized_processor = PacmanLogitProcessor.to_str()
-        import json, os
+        import json
         from pathlib import Path
         from .fixed_prefix import validate_prefix
         declaration = os.environ.get('PACMAN_CACHE_CONTRACT') if cache_contract_enabled else None
         self.cache_contract = json.loads(Path(declaration).read_text()) if declaration else None
+        if self.action_prefix_isolation and self.cache_contract and self.cache_contract.get('mode') != 'off':
+            raise ValueError('action prefix isolation conflicts with fixed-prefix caching')
         if self.cache_contract:
             if self.observation_mode == 'image':
                 from .fixed_prefix import validate_vision_request
@@ -158,12 +171,14 @@ class SGLangGenerator:
         }
         if image_url is None:
             del body['image_data']
+        if self.action_prefix_isolation:
+            body['extra_key'] = 'pacman-action-prefix-v1-' + body['rid']
         response = await self.client.post(self.endpoint, json=body)
         response.raise_for_status()
         result = response.json()
         meta = result["meta_info"]
         if self.require_uncached and (type(meta.get('cached_tokens')) is not int or meta['cached_tokens'] != 0):
-            raise ValueError('Cache-contract opt-out requires explicit zero cached tokens')
+            raise ValueError('Uncached action request requires explicit zero cached tokens')
         if self.cache_contract:
             expected = len(self.fixed_prefix) if self.cache_contract['mode'] == 'fixed' else 0
             if meta.get('cached_tokens', 0) != expected:

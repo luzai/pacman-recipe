@@ -1,0 +1,41 @@
+{
+  "sources": [
+    {
+      "report_path": "vision-edward-engine-single-curriculum-20261102/engine_training_contract.py",
+      "sha256": "bd3787f558570e4cca7aa1d317d7882184c740a31f1f34b8b99bef983a9975e3"
+    },
+    {
+      "report_path": "vision-edward-engine-single-curriculum-20261102/curriculum_contract.py",
+      "sha256": "67d9fc9d0430a5e4fa2dc962764de6ef60587fd642830273de1d197dfcce382e"
+    },
+    {
+      "report_path": "vision-edward-engine-single-curriculum-20261102/engine_eval_contract.py",
+      "sha256": "630ac6a6a7bd64c1e5c2989ba4619d9b29cc4928d2697061a76b10846cc595d7"
+    },
+    {
+      "report_path": "vision-edward-engine-single-curriculum-20261102/engine_objective.py",
+      "sha256": "95456c5bf0e27bd9927e201427f63d27d6ee4ff4c63da955b2239e9552c768d0"
+    },
+    {
+      "report_path": "vision-edward-public-language-lora-multimap-20261029/language_lora.py",
+      "sha256": "011db141a5715c748e4c4bc68cc246b89bb0423b3f49caf82e0407ca689ee0da"
+    },
+    {
+      "report_path": "vision-edward-public-language-lora-multimap-20261029/module_contract.py",
+      "sha256": "98975efcd9f4d83224d9d07b480a99404e1806b55ca8b11a76d199e95387a4d3"
+    },
+    {
+      "report_path": "vision-edward-public-language-lora-multimap-20261029/choice_loss.py",
+      "sha256": "5c998ca8e3800f9b63ffdddf5661ff0330a4f20342999b1dcb8b4241a35e758d"
+    }
+  ],
+  "later_snapshot": {
+    "archive": "vision-edward-original-fullfood10-20261103/LONG_BUNDLE-v3.tar",
+    "sha256": "ca1cf44a07cd5ff8b0a3ed2e058da9060b3d6019167648448b6805a957adc46d",
+    "used_for_scope": [
+      "explicit configurable topology counts; no fixed36-only split",
+      "periodic evaluation 30/55/80 in inherited5/interval25/final100 example"
+    ]
+  },
+  "integration_scope": "CPU algorithm modules and explicit experimental contracts only; no complete launcher/trainer pipeline or deployment qualification"
+}

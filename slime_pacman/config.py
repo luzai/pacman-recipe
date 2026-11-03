@@ -38,8 +38,11 @@ class PacmanConfig:
     clip_cov_high: float = 5.0
     swanlab_mode: str = "auto"
     swanlab_project: str = "pacman-slime"
+    action_prefix_isolation: str = "off"
 
     def __post_init__(self):
+        if self.action_prefix_isolation not in ("off", "unique-extra-key-v1"):
+            raise ValueError("unsupported action_prefix_isolation")
         if type(self.clip_cov) is not bool:
             raise ValueError("clip_cov must be a boolean")
         if (not all(math.isfinite(v) for v in (self.clip_cov_ratio, self.clip_cov_low, self.clip_cov_high))

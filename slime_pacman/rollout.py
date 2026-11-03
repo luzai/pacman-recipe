@@ -351,6 +351,7 @@ async def _collect_episode(
             client=client,
             max_input_tokens=config.max_input_tokens,
             observation_mode=getattr(config, "observation_mode", "image"),
+            action_prefix_isolation=getattr(config, "action_prefix_isolation", "off"),
         )
         runner = EpisodeRunner(
             record,

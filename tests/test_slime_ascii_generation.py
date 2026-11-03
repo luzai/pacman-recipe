@@ -73,7 +73,7 @@ def test_actual_ascii_runner_restore_without_png(monkeypatch,tmp_path):
     from pacman_recipe.level1 import episode as source
     root=Path(__file__).resolve().parents[1]
     record=make_episode_record(0,split='test',recipe_root=root,game_root=root.parent/'pacman-python',backend_root=root.parent/'slime',max_steps=32,observation_mode='ascii',edward_fallback_mode='risk_ranked')
-    cfg=PacmanConfig(max_steps=32,groups_per_update=16,clip=.05,observation_mode='ascii',edward_fallback_mode='risk_ranked')
+    cfg=PacmanConfig(max_steps=32,groups_per_update=16,clip=.05,observation_mode='ascii',edward_fallback_mode='risk_ranked',episode_life_mode='single_death')
     def forbidden(*args,**kwargs):raise AssertionError('ASCII runner must never encode PNG')
     monkeypatch.setattr(source,'encode_png',forbidden)
     def play(record):
@@ -102,7 +102,7 @@ def test_actual_ascii_probe_config_and_rejection():
     from pathlib import Path
     from slime_pacman.config import load_config,PacmanConfig
     import os
-    path=Path(os.environ.get('PACMAN_ASCII_PROBE_CONFIG',str(Path(__file__).resolve().parents[2]/'reports/slime-migration-20260928/round2/ascii-edward/probe_config.yaml')))
+    path=Path(os.environ.get('PACMAN_ASCII_PROBE_CONFIG',str(Path(__file__).parent/'fixtures/ascii-edward-probe.yaml')))
     cfg=load_config(path)
     assert (cfg.observation_mode,cfg.groups_per_update,cfg.group_size,cfg.clip)==('ascii',16,12,.05)
     for groups,clip in ((4,.05),(16,.2),(8,.05)):
